@@ -29,6 +29,7 @@ const BarChart: React.FC<BarChartProps> = ({
       document?.getElementById(containerID)!.clientWidth || 200;
     const svg = d3.select(chartRef.current);
     svg.selectAll("*").remove(); // Clear previous render
+    d3.selectAll("#tooltip-container").remove(); // Ensuring the previous tooltip is removed.
 
     const modifiedData: DataWithFullCategoryText[] = data.map((ob) => {
       let truncatedCategory = ob.category;
@@ -95,6 +96,7 @@ const BarChart: React.FC<BarChartProps> = ({
     const tooltip = d3
       .select("body")
       .append("div")
+      .attr("id", "tooltip-container") // Ensure only one tooltip exists
       .style("position", "absolute")
       .style("background", "#fff")
       .style("padding", "5px 10px")
