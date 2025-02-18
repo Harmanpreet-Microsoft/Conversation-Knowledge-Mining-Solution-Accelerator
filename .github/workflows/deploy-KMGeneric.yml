@@ -68,7 +68,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters environmentName=${UNIQUE_SOLUTION_PREFIX} contentUnderstandingLocation="West US" secondaryLocation="eastus2" imageTag=${{ steps.determine_tag.outputs.tagname }}
+            --parameters environmentName=${{env.UNIQUE_SOLUTION_PREFIX}} contentUnderstandingLocation="West US" secondaryLocation="eastus2" imageTag=${{ steps.determine_tag.outputs.tagname }}
 
       
 
