@@ -41,7 +41,7 @@ jobs:
 
       - name: Create Resource Group
         run: |
-          az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location westeurope
+          az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location eastus2
 
       - name: Generate Unique Solution Prefix
         id: generate_solution_prefix
@@ -66,7 +66,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters  otherLocation=centralus imageTag=${{ steps.determine_tag.outputs.tagname }}
+            --parameters environmentName=${UNIQUE_SOLUTION_PREFIX} contentUnderstandingLocation="West US" secondaryLocation="eastus2" imageTag=${{ steps.determine_tag.outputs.tagname }}
 
       
 
