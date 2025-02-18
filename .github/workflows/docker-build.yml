@@ -1,4 +1,4 @@
-name: Build Docker and Optional Push - KM Generic
+name: Build and Push Docker Image
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
 
       - name: Log in to Azure Container Registry
         if: ${{ (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) || (github.event_name == 'workflow_dispatch' && github.ref_name == 'dependabotchanges') }}
-        uses: azure/docker-login@v2        
+        uses: azure/docker-login@v2 
         with:
           login-server: ${{ secrets.ACR_LOGIN_SERVER }}
           username: ${{ secrets.ACR_USERNAME }}
@@ -65,7 +65,7 @@ jobs:
         with:
           context: ./src/App
           file: ./src/App/WebApp.Dockerfile
-          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo' }}
+          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges'  }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}
             ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
@@ -75,7 +75,7 @@ jobs:
         with:
           context: ./src/api/km-rag-function
           file: ./src/api/km-rag-function/Dockerfile
-          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo' }}
+          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/km-rag-function:${{ steps.determine_tag.outputs.tagname }}
             ${{ secrets.ACR_LOGIN_SERVER }}/km-rag-function:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
@@ -85,7 +85,7 @@ jobs:
         with:
           context: ./src/api/km-charts-function
           file: ./src/api/km-charts-function/Dockerfile
-          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo' }}
+          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/km-charts-function:${{ steps.determine_tag.outputs.tagname }}
             ${{ secrets.ACR_LOGIN_SERVER }}/km-charts-function:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
