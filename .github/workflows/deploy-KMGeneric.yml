@@ -6,9 +6,11 @@ on:
       - main
       - dev
       - demo
+  workflow_dispatch:
 
   schedule:
     - cron: '0 0,12 * * *'  # Runs at 12:00 AM and 12:00 PM GMT
+
     
 jobs:
   deploy:
@@ -49,7 +51,7 @@ jobs:
           set -e
           COMMON_PART="km"
           TIMESTAMP=$(date +%s)  
-          UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 3) 
+          UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 5) 
           UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
           echo "SOLUTION_PREFIX=${UNIQUE_SOLUTION_PREFIX}" >> $GITHUB_ENV
           echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
