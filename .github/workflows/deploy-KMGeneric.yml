@@ -115,16 +115,18 @@ jobs:
                 echo "Resource group does not exists."
               fi
       - name: Purge Key Vault After Deletion
-        if: always()  # Ensures purging runs regardless of deployment success/failure
+        if: always()
         run: |
           set -e
-          echo "Checking if Key Vault exists..."
-          kv_exists=$(az keyvault list --query "[?name=='${{ env.KEYVAULT_NAME }}'].name" --output tsv)
+          keyvault_name="${{ env.KEYVAULT_NAME }}"
           
-          if [ -n "$kv_exists" ]; then
-            echo "Key Vault exists. Purging..."
-            az keyvault purge --name ${{ env.KEYVAULT_NAME }}
-            echo "Key Vault purged: ${{ env.KEYVAULT_NAME }}"
+          echo "Checking if Key Vault '$keyvault_name' is soft-deleted..."
+          deleted_vaults=$(az keyvault list-deleted --query "[?name=='$keyvault_name'].name" --output tsv)
+          
+          if [[ -n "$deleted_vaults" ]]; then
+            echo "Key Vault '$keyvault_name' is soft-deleted. Proceeding to purge..."
+            az keyvault purge --name "$keyvault_name" --no-wait
           else
-            echo "Key Vault does not exist or is already purged."
+            echo "Key Vault '$keyvault_name' is not soft-deleted. No action taken."
           fi
+
