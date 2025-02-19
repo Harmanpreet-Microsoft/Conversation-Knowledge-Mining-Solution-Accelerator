@@ -69,7 +69,14 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
             --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="West US" secondaryLocation="eastus2" imageTag=${{ steps.determine_tag.outputs.tagname }}
-
+    
+      - name: Extract Key Vault Name
+        id: extract_keyvault
+        run: |
+          echo "Extracting Key Vault name..."
+          export KEYVAULT_NAME="${{ env.SOLUTION_PREFIX }}-kv"
+          echo "KEYVAULT_NAME=${KEYVAULT_NAME}" >> $GITHUB_ENV
+          echo "Key Vault Name: ${KEYVAULT_NAME}"
       
 
       - name: Send Notification on Failure
@@ -92,7 +99,7 @@ jobs:
 
 
       - name: Delete Bicep Deployment
-        
+        if: always()
         run: |
               set -e  
               echo "Checking if resource group exists..."
@@ -107,4 +114,17 @@ jobs:
               else
                 echo "Resource group does not exists."
               fi
-        
+      - name: Purge Key Vault After Deletion
+        if: always()  # Ensures purging runs regardless of deployment success/failure
+        run: |
+          set -e
+          echo "Checking if Key Vault exists..."
+          kv_exists=$(az keyvault list --query "[?name=='${{ env.KEYVAULT_NAME }}'].name" --output tsv)
+          
+          if [ -n "$kv_exists" ]; then
+            echo "Key Vault exists. Purging..."
+            az keyvault purge --name ${{ env.KEYVAULT_NAME }}
+            echo "Key Vault purged: ${{ env.KEYVAULT_NAME }}"
+          else
+            echo "Key Vault does not exist or is already purged."
+          fi
