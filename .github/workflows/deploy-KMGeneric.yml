@@ -114,19 +114,31 @@ jobs:
               else
                 echo "Resource group does not exists."
               fi
-      - name: Purge Key Vault After Deletion
-        if: always()
-        run: |
-          set -e
-          keyvault_name="${{ env.KEYVAULT_NAME }}"
-          
-          echo "Checking if Key Vault '$keyvault_name' is soft-deleted..."
-          deleted_vaults=$(az keyvault list-deleted --query "[?name=='$keyvault_name'].name" --output tsv)
-          
-          if [[ -n "$deleted_vaults" ]]; then
-            echo "Key Vault '$keyvault_name' is soft-deleted. Proceeding to purge..."
-            az keyvault purge --name "$keyvault_name" --no-wait
-          else
-            echo "Key Vault '$keyvault_name' is not soft-deleted. No action taken."
-          fi
+              - name: Purge Key Vault After Deletion
+                if: always()
+                run: |
+                  set -e
+                  keyvault_name="${{ env.KEYVAULT_NAME }}"
+                  retries=(240 480 960)  # Retry intervals in seconds (4m, 8m, 16m)
+                  
+                  echo "Checking if Key Vault '$keyvault_name' is soft-deleted..."
+                  
+                  for attempt in {1..4}; do  # 3 retries + 1 initial attempt
+                    deleted_vaults=$(az keyvault list-deleted --query "[?name=='$keyvault_name'].name" --output tsv)
+                    
+                    if [[ -n "$deleted_vaults" ]]; then
+                      echo "Key Vault '$keyvault_name' is soft-deleted. Proceeding to purge..."
+                      az keyvault purge --name "$keyvault_name" --no-wait && break
+                    else
+                      echo "Key Vault '$keyvault_name' is not soft-deleted. No action taken."
+                    fi
+                    
+                    if [[ $attempt -lt 4 ]]; then
+                      echo "Retrying in ${retries[$((attempt-1))]} seconds..."
+                      sleep ${retries[$((attempt-1))]}
+                    else
+                      echo "Max retries reached. Exiting."
+                    fi
+                  done
+
 
