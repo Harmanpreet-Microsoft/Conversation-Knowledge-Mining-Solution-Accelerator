@@ -76,10 +76,10 @@ jobs:
         run: |
               echo "Fetching AI Services and Key Vault names before deletion..."
               
-              # Get Key Vault name
-              KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
-              echo "Detected Key Vault: $KEYVAULT_NAME"
-              echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
+              # # Get Key Vault name
+              # KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
+              # echo "Detected Key Vault: $KEYVAULT_NAME"
+              # echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
           
               # Get AI Services names and convert them into a space-separated string
               AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv | tr '\n' ' ')
@@ -130,6 +130,8 @@ jobs:
         if: always()
         run: |
                 echo "Waiting for resources to be soft deleted..."
+            
+                # Wait for Key Vault to be soft deleted
                 if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
                   while true; do
                     DELETED_VAULT=$(az keyvault show-deleted --name ${{ env.KEYVAULT_NAME }} --query "id" -o tsv 2>/dev/null || echo "")
@@ -141,32 +143,29 @@ jobs:
                     sleep 15
                   done
                 fi
-      
-                LOCATION="eastus"  # Adjust as needed
+            
+                # Wait for AI Services to be soft deleted
                 for AI_SERVICE in ${{ env.AI_SERVICES }}; do
                   while true; do
-                    DELETED_AI_SERVICE=$(az cognitiveservices account show-deleted \
-                      --name "$AI_SERVICE" \
-                      --resource-group "${{ env.RESOURCE_GROUP_NAME }}" \
-                      --location "$LOCATION" \
-                      --query "id" -o tsv 2>/dev/null || echo "")
+                    DELETED_AI_SERVICE=$(az cognitiveservices account list-deleted --query "[?name=='$AI_SERVICE'].id" -o tsv 2>/dev/null || echo "")
                     if [ -n "$DELETED_AI_SERVICE" ]; then
-                      echo "AI Service $AI_SERVICE is soft-deleted!"
+                      echo "AI Service $AI_SERVICE is soft deleted!"
                       break
                     fi
                     echo "AI Service $AI_SERVICE not yet soft deleted. Retrying in 15s..."
                     sleep 15
                   done
                 done
+            
       
       - name: Purge Key Vault and AI Services
         if: always()
         run: |
                 echo "Purging soft deleted resources..."
-                if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
-                  echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
-                  az keyvault purge --name ${{ env.KEYVAULT_NAME }}
-                fi
+                # if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
+                #   echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
+                #   az keyvault purge --name ${{ env.KEYVAULT_NAME }}
+                # fi
                 for AI_SERVICE in ${{ env.AI_SERVICES }}; do
                   echo "Purging AI Service: $AI_SERVICE"
                   az cognitiveservices account purge --name $AI_SERVICE
