@@ -72,6 +72,7 @@ jobs:
      
             
       - name: Extract AI Services and Key Vault Names
+        if: always()
         run: |
               echo "Fetching AI Services and Key Vault names before deletion..."
               
@@ -79,11 +80,13 @@ jobs:
               KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
               echo "Detected Key Vault: $KEYVAULT_NAME"
               echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
-    
-              # Get AI Services names
-              AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv)
+          
+              # Get AI Services names and convert them into a space-separated string
+              AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv | tr '\n' ' ')
+              
               echo "Detected AI Services: $AI_SERVICES"
-              echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV   
+              echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV
+          
  
       
 
@@ -123,6 +126,7 @@ jobs:
                 echo "Resource group does not exists."
               fi
       - name: Wait for Soft Deletion of Key Vault and AI Services
+        if: always()
         run: |
                 echo "Waiting for resources to be soft deleted..."
       
@@ -155,6 +159,7 @@ jobs:
                 done
       
       - name: Purge Key Vault and AI Services
+        if: always()
         run: |
                 echo "Purging soft deleted resources..."
       
