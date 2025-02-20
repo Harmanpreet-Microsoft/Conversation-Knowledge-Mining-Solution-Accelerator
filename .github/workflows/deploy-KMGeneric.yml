@@ -143,19 +143,14 @@ jobs:
                     sleep 15
                   done
                 fi
-      
-                # Wait for AI Services to be soft deleted
-                for AI_SERVICE in ${{ env.AI_SERVICES }}; do
-                  echo "Checking AI Service ($AI_SERVICE) soft deletion..."
-                  while true; do
-                    DELETED_AI=$(az cognitiveservices account show-deleted --name $AI_SERVICE --query "id" -o tsv 2>/dev/null || echo "")
-                    if [ -n "$DELETED_AI" ]; then
-                      echo "AI Service ($AI_SERVICE) soft deleted!"
-                      break
-                    fi
-                    echo "AI Service ($AI_SERVICE) not yet soft deleted. Retrying in 15s..."
-                    sleep 15
-                  done
+                  AI_SERVICES_SOFT_DELETED=$(az cognitiveservices account show-deleted --query "[].name" -o tsv)
+
+                  if [[ -z "$AI_SERVICES_SOFT_DELETED" ]]; then
+                      echo "No AI Services found in soft-delete state. Retrying..."
+                  else
+                      echo "AI Services are soft-deleted: $AI_SERVICES_SOFT_DELETED"
+                  fi
+
                 done
       
       - name: Purge Key Vault and AI Services
