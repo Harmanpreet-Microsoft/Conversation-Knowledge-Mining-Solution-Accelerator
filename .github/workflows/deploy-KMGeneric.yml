@@ -162,20 +162,23 @@ jobs:
       - name: Purge Key Vault and AI Services
         if: always()
         run: |
-                              echo "Purging soft deleted resources..."
-                              
-                              # if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
-                              #   echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
-                              #   az keyvault purge --name ${{ env.KEYVAULT_NAME }}
-                              # fi
-                      
-                              # Ensure AI_SERVICES is properly split into individual services
-                              IFS=' ' read -r -a SERVICES <<< "${{ env.AI_SERVICES }}"
-                      
-                              for AI_SERVICE in "${SERVICES[@]}"; do
-                                echo "Purging AI Service: $AI_SERVICE"
-                                az cognitiveservices account purge --location eastus2 --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --name "$AI_SERVICE"
-                              done
+                  echo "Purging soft deleted resources..."
+                  
+                  # Ensure AI_SERVICES is properly split into individual services
+                  IFS=' ' read -r -a SERVICES <<< "${{ env.AI_SERVICES }}"
+        
+                  for AI_SERVICE in "${SERVICES[@]}"; do
+                    echo "Checking location for AI Service: $AI_SERVICE"
+        
+                    # Fetch AI Service location
+                    SERVICE_LOCATION=$(az cognitiveservices account list-deleted --query "[?name=='$AI_SERVICE'].location" -o tsv 2>/dev/null || echo "")
+        
+                    if [ -n "$SERVICE_LOCATION" ]; then
+                      echo "Purging AI Service $AI_SERVICE in $SERVICE_LOCATION"
+                      az cognitiveservices account purge --location "$SERVICE_LOCATION" --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --name "$AI_SERVICE"
+                    else
+                      echo "Could not determine location for AI Service: $AI_SERVICE. Skipping purge."
+                    fi
+                  done
         shell: bash
-              
-              
+        
