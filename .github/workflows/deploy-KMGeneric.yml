@@ -2,13 +2,16 @@ name: Validate Deployment - KM Generic
 on:
   push:
     branches:
+
       - main
       - dev
       - demo
   workflow_dispatch:
+
   schedule:
     - cron: '0 0,12 * * *'  # Runs at 12:00 AM and 12:00 PM GMT
 
+    
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -36,8 +39,8 @@ jobs:
           COMMON_PART="ci-KMGeneric"
           UNIQUE_RG_NAME="${COMMON_PART}${TIMESTAMP}"
           echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
-          echo "Generated Resource Group Name: ${UNIQUE_RG_NAME}"
-    
+          echo "Generated Resource_GROUP_PREFIX: ${UNIQUE_RG_NAME}"
+
       - name: Create Resource Group
         run: |
           az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location eastus2
@@ -51,7 +54,12 @@ jobs:
           UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 5) 
           UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
           echo "SOLUTION_PREFIX=${UNIQUE_SOLUTION_PREFIX}" >> $GITHUB_ENV
-          echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}"
+          echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
+
+
+      - name: Determine Tag Name Based on Branch
+        id: determine_tag
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
 
       - name: Deploy Bicep Template
         id: deploy
@@ -60,61 +68,107 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="West US" secondaryLocation="eastus2" imageTag=${{ github.ref_name }}
-
+            --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="West US" secondaryLocation="eastus2" imageTag=${{ steps.determine_tag.outputs.tagname }}
+     
+            
       - name: Extract AI Services and Key Vault Names
         if: always()
         run: |
-          echo "Fetching AI Services and Key Vault names before deletion..."
-          KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
-          echo "Detected Key Vault: $KEYVAULT_NAME"
-          echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
-          AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv | tr '\n' ' ')
-          echo "Detected AI Services: $AI_SERVICES"
-          echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV
+              echo "Fetching AI Services and Key Vault names before deletion..."
+              
+              # Get Key Vault name
+              KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
+              echo "Detected Key Vault: $KEYVAULT_NAME"
+              echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
+          
+              # Get AI Services names and convert them into a space-separated string
+              AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv | tr '\n' ' ')
+              
+              echo "Detected AI Services: $AI_SERVICES"
+              echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV
+          
+ 
+      
+
+      - name: Send Notification on Failure
+        if: failure()
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      
+          # Construct the email body
+          EMAIL_BODY=$(cat <<EOF
+          {
+            "body": "<p>Dear Team,</p><p>We would like to inform you that the CKMv2 Automation process has encountered an issue and has failed to complete successfully.</p><p><strong>Build URL:</strong> ${RUN_URL}<br> ${OUTPUT}</p><p>Please investigate the matter at your earliest convenience.</p><p>Best regards,<br>Your Automation Team</p>"
+          }
+          EOF
+          )
+      
+          # Send the notification
+          curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$EMAIL_BODY" || echo "Failed to send notification"
+
+
+      - name: Delete Bicep Deployment
+        if: always()
+        run: |
+              set -e  
+              echo "Checking if resource group exists..."
+              rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
+              if [ "$rg_exists" = "true" ]; then
+                echo "Resource group exist. Cleaning..."
+                az group delete \
+                    --name ${{ env.RESOURCE_GROUP_NAME }} \
+                    --yes \
+                    --no-wait
+                echo "Resource group deleted...  ${{ env.RESOURCE_GROUP_NAME }}"
+              else
+                echo "Resource group does not exists."
+              fi
 
       - name: Wait for Soft Deletion of Key Vault and AI Services
         if: always()
         run: |
-          echo "Waiting for resources to be soft deleted..."
-          if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
-            while true; do
-              DELETED_VAULT=$(az keyvault show-deleted --name ${{ env.KEYVAULT_NAME }} --query "id" -o tsv 2>/dev/null || echo "")
-              if [ -n "$DELETED_VAULT" ]; then
-                echo "Key Vault soft deleted!"
-                break
-              fi
-              echo "Key Vault not yet soft deleted. Retrying in 15s..."
-              sleep 15
-            done
-          fi
-
-          LOCATION="eastus"  # Adjust as needed
-          for AI_SERVICE in ${{ env.AI_SERVICES }}; do
-            while true; do
-              DELETED_AI_SERVICE=$(az cognitiveservices account show-deleted \
-                --name "$AI_SERVICE" \
-                --resource-group "${{ env.RESOURCE_GROUP_NAME }}" \
-                --location "$LOCATION" \
-                --query "id" -o tsv 2>/dev/null || echo "")
-              if [ -n "$DELETED_AI_SERVICE" ]; then
-                echo "AI Service $AI_SERVICE is soft-deleted!"
-                break
-              fi
-              echo "AI Service $AI_SERVICE not yet soft deleted. Retrying in 15s..."
-              sleep 15
-            done
-          done
-
+                echo "Waiting for resources to be soft deleted..."
+                if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
+                  while true; do
+                    DELETED_VAULT=$(az keyvault show-deleted --name ${{ env.KEYVAULT_NAME }} --query "id" -o tsv 2>/dev/null || echo "")
+                    if [ -n "$DELETED_VAULT" ]; then
+                      echo "Key Vault soft deleted!"
+                      break
+                    fi
+                    echo "Key Vault not yet soft deleted. Retrying in 15s..."
+                    sleep 15
+                  done
+                fi
+      
+                LOCATION="eastus"  # Adjust as needed
+                for AI_SERVICE in ${{ env.AI_SERVICES }}; do
+                  while true; do
+                    DELETED_AI_SERVICE=$(az cognitiveservices account show-deleted \
+                      --name "$AI_SERVICE" \
+                      --resource-group "${{ env.RESOURCE_GROUP_NAME }}" \
+                      --location "$LOCATION" \
+                      --query "id" -o tsv 2>/dev/null || echo "")
+                    if [ -n "$DELETED_AI_SERVICE" ]; then
+                      echo "AI Service $AI_SERVICE is soft-deleted!"
+                      break
+                    fi
+                    echo "AI Service $AI_SERVICE not yet soft deleted. Retrying in 15s..."
+                    sleep 15
+                  done
+                done
+      
       - name: Purge Key Vault and AI Services
         if: always()
         run: |
-          echo "Purging soft deleted resources..."
-          if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
-            echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
-            az keyvault purge --name ${{ env.KEYVAULT_NAME }}
-          fi
-          for AI_SERVICE in ${{ env.AI_SERVICES }}; do
-            echo "Purging AI Service: $AI_SERVICE"
-            az cognitiveservices account purge --name $AI_SERVICE
-          done
+                echo "Purging soft deleted resources..."
+                if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
+                  echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
+                  az keyvault purge --name ${{ env.KEYVAULT_NAME }}
+                fi
+                for AI_SERVICE in ${{ env.AI_SERVICES }}; do
+                  echo "Purging AI Service: $AI_SERVICE"
+                  az cognitiveservices account purge --name $AI_SERVICE
+                done
+              
