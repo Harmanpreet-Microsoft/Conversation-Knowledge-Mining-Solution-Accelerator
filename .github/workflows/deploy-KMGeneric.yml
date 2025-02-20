@@ -143,7 +143,7 @@ jobs:
                     sleep 15
                   done
                 fi
-                
+
             
                 # Wait for AI Services to be soft deleted
                 for AI_SERVICE in ${{ env.AI_SERVICES }}; do
@@ -170,5 +170,6 @@ jobs:
                 for AI_SERVICE in ${{ env.AI_SERVICES }}; do
                   echo "Purging AI Service: $AI_SERVICE"
                   az cognitiveservices account purge --name $AI_SERVICE
+                  az cognitiveservices account purge --location eastus2 --resource-group ${{ env.RESOURCE_GROUP_NAME }} --name $AI_SERVICE
                 done
               
