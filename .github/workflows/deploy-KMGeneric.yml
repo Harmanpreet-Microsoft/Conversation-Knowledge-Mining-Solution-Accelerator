@@ -162,20 +162,20 @@ jobs:
       - name: Purge Key Vault and AI Services
         if: always()
         run: |
-                      echo "Purging soft deleted resources..."
+                              echo "Purging soft deleted resources..."
+                              
+                              # if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
+                              #   echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
+                              #   az keyvault purge --name ${{ env.KEYVAULT_NAME }}
+                              # fi
                       
-                      # if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
-                      #   echo "Purging Key Vault: ${{ env.KEYVAULT_NAME }}"
-                      #   az keyvault purge --name ${{ env.KEYVAULT_NAME }}
-                      # fi
-              
-                      # Ensure AI_SERVICES is properly split into individual services
-                      IFS=' ' read -r -a SERVICES <<< "${{ env.AI_SERVICES }}"
-              
-                      for AI_SERVICE in "${SERVICES[@]}"; do
-                        echo "Purging AI Service: $AI_SERVICE"
-                        az cognitiveservices account purge --location eastus2 --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --name "$AI_SERVICE"
-                      done
+                              # Ensure AI_SERVICES is properly split into individual services
+                              IFS=' ' read -r -a SERVICES <<< "${{ env.AI_SERVICES }}"
+                      
+                              for AI_SERVICE in "${SERVICES[@]}"; do
+                                echo "Purging AI Service: $AI_SERVICE"
+                                az cognitiveservices account purge --location eastus2 --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --name "$AI_SERVICE"
+                              done
         shell: bash
               
               
