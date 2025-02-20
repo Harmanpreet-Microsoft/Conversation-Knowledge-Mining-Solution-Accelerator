@@ -143,6 +143,7 @@ jobs:
                     sleep 15
                   done
                 fi
+                
             
                 # Wait for AI Services to be soft deleted
                 for AI_SERVICE in ${{ env.AI_SERVICES }}; do
