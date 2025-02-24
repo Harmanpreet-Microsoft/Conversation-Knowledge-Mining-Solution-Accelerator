@@ -1,8 +1,12 @@
 # # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
-
+# metadata:
+#     template: azd-init@1.11.1
 environment:
   name: conversation-knowledge-mining
   location: eastus
+name: conversation-knowledge-mining
+metadata:
+  template: conversation-knowledge-mining@1.0
 
 parameters:
   solutionPrefix:

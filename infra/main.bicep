@@ -50,7 +50,7 @@ var gptModelVersion = '2024-02-15-preview'
 @description('Capacity of the GPT deployment:')
 // You can increase this, but capacity is limited per model/region, so you will get errors if you go over
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
-param gptDeploymentCapacity int = 100
+param gptDeploymentCapacity int = 30
 
 @minLength(1)
 @description('Name of the Text Embedding model to deploy:')
@@ -192,6 +192,7 @@ module azureFunctionsCharts 'deploy_azure_function_charts.bicep' = {
     sqlDbUser: sqlDBModule.outputs.sqlDbUser
     sqlDbPwd:keyVault.getSecret('SQLDB-PASSWORD')
     // managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
+    storageAccountName:aifoundry.outputs.storageAccountName
   }
   dependsOn:[keyVault]
 }
@@ -217,6 +218,7 @@ module azureragFunctionsRag 'deploy_azure_function_rag.bicep' = {
     sqlDbPwd:keyVault.getSecret('SQLDB-PASSWORD')
     aiProjectName:aifoundry.outputs.aiProjectName
     // managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
+    storageAccountName:aifoundry.outputs.storageAccountName
   }
   dependsOn:[keyVault]
 }
@@ -235,6 +237,7 @@ module appserviceModule 'deploy_app_service.bicep' = {
   name: 'deploy_app_service'
   params: {
     imageTag: imageTag
+    applicationInsightsId: aifoundry.outputs.applicationInsightsId
     // identity:managedIdentityModule.outputs.managedIdentityOutput.id
     solutionName: solutionPrefix
     // solutionLocation: solutionLocation
@@ -258,3 +261,5 @@ module appserviceModule 'deploy_app_service.bicep' = {
   scope: resourceGroup(resourceGroup().name)
   dependsOn:[sqlDBModule]
 }
+
+output WEB_APP_URL string = appserviceModule.outputs.webAppUrl

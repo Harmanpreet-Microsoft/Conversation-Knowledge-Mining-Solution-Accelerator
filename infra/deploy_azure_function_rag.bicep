@@ -20,8 +20,8 @@ param sqlDbUser string
 param sqlDbPwd string
 // param managedIdentityObjectId string
 param imageTag string
+param storageAccountName string
 var functionAppName = '${solutionName}-rag-fn'
-var storageaccountname = '${solutionName}ragfnacc'
 var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-rag-function:${imageTag}'
 var environmentName = '${solutionName}-rag-fn-env'
 
@@ -29,18 +29,6 @@ var environmentName = '${solutionName}-rag-fn-env'
 // var sqlDbName = 'nc2202-sql-db'
 // var sqlDbUser = 'sqladmin'
 // var sqlDbPwd = 'TestPassword_1234'
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: storageaccountname
-  location: resourceGroup().location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {
-    accessTier: 'Hot'
-  }
-}
 
 resource managedenv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: environmentName
@@ -80,8 +68,8 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
     siteConfig: {
       appSettings: [
         {
-          name: 'AzureWebJobsStorage'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount};EndpointSuffix=core.windows.net'
+          name: 'AzureWebJobsStorage__accountname'
+          value: storageAccountName
         }
         {
           name: 'PYTHON_ENABLE_INIT_INDEXING'
@@ -151,15 +139,6 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
       memory: '2Gi'
     }
     storageAccountRequired: false
-  }
-}
-
-resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, azurefn.id, 'StorageBlobDataContributor')
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: azurefn.identity.principalId
   }
 }
 

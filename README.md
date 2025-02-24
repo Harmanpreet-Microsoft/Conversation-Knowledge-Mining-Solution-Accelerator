@@ -48,9 +48,9 @@ QUICK DEPLOY
 
 To deploy this solution accelerator, you will need access to an [Azure subscription](https://azure.microsoft.com/free/) with permission to create resource groups and resources. 
 
-Please check the link [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) and choose a region where  Azure AI Foundry, Azure OpenAI Services, Azure AI Search, Azure AI Content Understanding, Embedding Deployment Capacity and GPT Model Capacity are available. 
+Please check the link [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) and choose a region where  Azure AI Foundry, Azure OpenAI Services, Azure AI Search, Azure AI Content Understanding, Embedding Deployment Capacity and GPT Model Capacity are available. Recommended regions are eastus, eastus2.
 
-When you start the deployment using one of the options below, most parameters will have a default name set already. You can update the following settings:
+> When you start the deployment using one of the options below, most parameters will have a default name set already. You can update the following settings:
 
 -  Azure region where the resources will be created in
 
@@ -64,11 +64,22 @@ When you start the deployment using one of the options below, most parameters wi
 
 -  GPT model from the drop-down list of values
 
--  GPT model deployment capacity
+-  GPT model deployment capacity (GPT-4, GPT-4o, and GPT-4o Mini)
 
--  Embedding model from the drop-down list of values
+-  Embedding model from the drop-down list of values (text-embedding-ada-002)
 
 -  Embedding model capacity
+
+### [Optional]: Quota Recommendations
+- The default for the GPT model capacity in deployment is **30k tokens**.
+    - For optimal performance, it is recommended to increase to **100k tokens**. 
+- Navigate to the [Azure AI Foundry portal](https://ai.azure.com/)
+- Select the AI Project you are using for this accelerator if you are not already in the project.
+- Select `Management center` from the bottom left navigation menu
+- Select `Quota`, click the `GlobalStandard` dropdown and select the GPT model (`GPT-4 / GPT-4o / GPT-4o mini`) or embeddings model (`text-embedding-ada-002`) and region you are using for this accelerator to see your available quota. Please note `GPT-4o mini` and `text-embedding-ada-002` are used as default.
+
+- Request more quota or delete any unused model deployments as needed. 
+ 
 
 ### **Options**
 Pick from the options below to see step-by-step instructions for: GitHub Codespaces, VS Code Dev Containers, Local Environments, and Bicep deployments.
@@ -83,9 +94,9 @@ You can run this solution accelerator virtually by using GitHub Codespaces. The 
 1. Open the solution accelerator (this may take several minutes):
 
     [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator)
-
-2. Open a terminal window
-3. Continue with the [deploying steps](#deploying)
+2. Accept the default values on the create Codespaces page
+3. Open a terminal window if it is not already open
+4. Continue with the [deploying steps](#deploying)
 
 </details>
 
@@ -148,7 +159,9 @@ If you're not using one of the above options for opening the project, then you'l
 
 ### Deploying
 
-Once you've opened the project in [Codespaces](#github-codespaces), in [Dev Containers](#vs-code-dev-containers), or [locally](#local-environment), you can deploy it to Azure.
+Once you've opened the project in [Codespaces](#github-codespaces), in [Dev Containers](#vs-code-dev-containers), or [locally](#local-environment), 
+
+you can deploy it to Azure.
 
 ### Azure account setup
 
@@ -157,64 +170,58 @@ Once you've opened the project in [Codespaces](#github-codespaces), in [Dev Cont
     * Your Azure account must have `Microsoft.Authorization/roleAssignments/write` permissions, such as [Role Based Access Control Administrator](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles#role-based-access-control-administrator-preview), [User Access Administrator](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles#user-access-administrator), or [Owner](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles#owner).
     * Your Azure account also needs `Microsoft.Resources/deployments/write` permissions on the subscription level.
 
-You can view the permissions for your account and subscription by going to Azure portal, clicking 'Subscriptions' under 'Navigation' and then choosing your subscription from the list. If you try to search for your subscription and it does not come up, make sure no filters are selected. After selecting your subscription, select 'Access control (IAM)' and you can see the roles that are assigned to your account for this subscription. If you want to see more information about the roles, you can go to the 'Role assignments' tab and search by your account name and then click the role you want to view more information about.
+You can view the permissions for your account and subscription by following the steps below: 
+- Navigate to the [Azure Portal](https://portal.azure.com/) and click on `Subscriptions` under 'Navigation' 
+- Select the subscription you are using for this accelerator from the list. 
+    - If you try to search for your subscription and it does not come up, make sure no filters are selected.
+- Select `Access control (IAM)` and you can see the roles that are assigned to your account for this subscription. 
+    - If you want to see more information about the roles, you can go to the `Role assignments`
+     tab and search by your account name and then click the role you want to view more information about.
 
-## Customizing resource names
+### [Optional]: Customizing resource names 
 
-By default this template will use a default naming convention to prevent naming collisions within Azure.
-To override default naming conventions the following can be set.
+By default this template will use the environment name as the prefix to prevent naming collisions within Azure. The parameters below show the default values. You only need to run the statements below if you need to change the values. 
 
-* `AZURE_ENV_CU_LOCATION` - The name of the Content Understanding Location
-* `AZURE_ENV_SECONDARY_LOCATION` - The name of the Secondary Location
-* `AZURE_ENV_MODEL_DEPLOYMENT_TYPE` - The name of the Model Deployment Type
-* `AZURE_ENV_MODEL_NAME` - The name of the Model Name
-* `AZURE_ENV_MODEL_CAPACITY` - The name of the Model Capacity
-* `AZURE_ENV_EMBEDDING_MODEL_NAME` - The name of the Embedding Model
-* `AZURE_ENV_EMBEDDING_MODEL_CAPACITY` - The name of the Embedding Deployment Capacity
 
-To override any of those resource names, run `azd env set <key> <value>` before running `azd up`.
+> To override any of the parameters, run `azd env set <key> <value>` before running `azd up`. On the first azd command, it will prompt you for the environment name. Be sure to choose 3-10 charaters alphanumeric unique name. 
 
-## Customizing deployments
-
-To customize the deployments, you can set the following environment variables:
-
-Change the Content Understanding Location:
+Change the Content Understanding Location (allowed values: West US, Sweden Central, Australia East)
 
 ```shell
 azd env set AZURE_ENV_CU_LOCATION 'West US'
 ```
 
-Change the Secondary Location:
+Change the Secondary Location (example: eastus2, westus2, etc.)
 
 ```shell
 azd env set AZURE_ENV_SECONDARY_LOCATION eastus2
 ```
 
-Change the Model Deployment Type:
+Change the Model Deployment Type (allowed values: Standard, GlobalStandard)
 
 ```shell
 azd env set AZURE_ENV_MODEL_DEPLOYMENT_TYPE GlobalStandard
 ```
 
-Set the Model Name:
+Set the Model Name (allowed values: gpt-4o-mini, gpt-4o, gpt-4)
 
 ```shell
 azd env set AZURE_ENV_MODEL_NAME gpt-4o-mini
 ```
 
-Change the Model Capacity:
+Change the Model Capacity (choose a number based on available GPT model capacity in your subscription)
 
 ```shell
-azd env set AZURE_ENV_MODEL_CAPACITY 100
+azd env set AZURE_ENV_MODEL_CAPACITY 30
 ```
 
-Change the Embedding Model:
+Change the Embedding Model 
 
 ```shell
 azd env set AZURE_ENV_EMBEDDING_MODEL_NAME text-embedding-ada-002
 ```
 
-Change the Embedding Deployment Capacity:
+Change the Embedding Deployment Capacity (choose a number based on available embedding model capacity in your subscription)
 
 ```shell
 azd env set AZURE_ENV_EMBEDDING_MODEL_CAPACITY 80
@@ -234,11 +241,13 @@ azd env set AZURE_ENV_EMBEDDING_MODEL_CAPACITY 80
     azd up
     ```
 
-    It will prompt you to provide an `azd` environment name (like "azureaiapp"), select a subscription from your Azure account, and select a location which has quota for all the resources. Then it will provision the resources in your account and deploy the latest code. If you get an error or timeout with deployment, changing the location can help, as there may be availability constraints for the resources.
+3. Provide an `azd` environment name (like "ckmapp")
+4. Select a subscription from your Azure account, and select a location which has quota for all the resources. 
+    * Then it will provision the resources in your account and deploy the latest code. If you get an error or timeout with deployment, changing the location can help, as there may be availability constraints for the resources.
 
-3. Open [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service and get the app URL from Default Domain.
+5. Open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service and get the app URL from `Default domain`.
   
-4. You can now proceed to run the [development server](#development-server) to test the app locally, or if you are done trying out the app, you can delete the resources by running `azd down`.
+6. You can now proceed to run the [development server](#development-server) to test the app locally, or if you are done trying out the app, you can delete the resources by running `azd down`.
 
 <br/>
 <h2>
@@ -252,8 +261,9 @@ Additional Steps
 
     Before running the script, ensure you have:
 
-    - **Azure CLI** installed.
-    - **Python 3** installed.
+    - **[Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli#install)** installed.
+    - **[Python 3]( https://www.python.org/downloads/)** installed.
+    - **[Microsoft ODBC Driver 17 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16#version-17)** installed.
     ## Usage
 
     1. Clone the repository:
@@ -263,16 +273,18 @@ Additional Steps
     
     2. Navigate to script directory
         ```sh
-        cd Deployment\scripts\add_user_scripts
+        cd infra\scripts\add_user_scripts
 
     3. Run the script
         ```sh
+        chmod +x ./add_user.sh
         ./add_user.sh <resourcegroupname> <solution_prefix>
 
 2. **Add App Authentication**
    
     Follow steps in [App Authentication](./docs/AppAuthentication.md) to configure authenitcation in app service.
 
+    Note: Authentication changes can take up to 10 minutes 
 
 <h2>
 </br>
@@ -302,6 +314,9 @@ You can try the [Azure pricing calculator](https://azure.microsoft.com/en-us/pri
 * Azure Container App: Consumption tier with 0.5 CPU, 1GiB memory/storage. Pricing is based on resource allocation, and each month allows for a certain amount of free usage. [Pricing](https://azure.microsoft.com/pricing/details/container-apps/)
 * Azure Container Registry: Basic tier. [Pricing](https://azure.microsoft.com/pricing/details/container-registry/)
 * Log analytics: Pay-as-you-go tier. Costs based on data ingested. [Pricing](https://azure.microsoft.com/pricing/details/monitor/)
+* Azure SQL Server: General Purpose Tier. [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/)
+* Azure Cosmos DB: [Pricing](https://azure.microsoft.com/en-us/pricing/details/cosmos-db/autoscale-provisioned/)
+* Azure functions: Consumption tier [Pricing](https://azure.microsoft.com/en-us/pricing/details/functions/)
 
 ⚠️ To avoid unnecessary costs, remember to take down your app if it's no longer in use,
 either by deleting the resource group in the Portal or running `azd down`.

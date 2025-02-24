@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.28.1.47646",
-      "templateHash": "12766041167398442432"
+      "version": "0.33.93.31351",
+      "templateHash": "6443985593110817960"
     }
   },
   "parameters": {
@@ -66,7 +66,7 @@
     },
     "gptDeploymentCapacity": {
       "type": "int",
-      "defaultValue": 100,
+      "defaultValue": 30,
       "minValue": 10,
       "metadata": {
         "description": "Capacity of the GPT deployment:"
@@ -129,8 +129,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "14133192615685065374"
+              "version": "0.33.93.31351",
+              "templateHash": "4123789684929590981"
             }
           },
           "parameters": {
@@ -221,8 +221,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "9096960510978747660"
+              "version": "0.33.93.31351",
+              "templateHash": "4388214478635448075"
             }
           },
           "parameters": {
@@ -365,8 +365,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "17067117464506504820"
+              "version": "0.33.93.31351",
+              "templateHash": "12900062765650369722"
             }
           },
           "parameters": {
@@ -657,7 +657,7 @@
                 "accessTier": "Hot",
                 "allowBlobPublicAccess": false,
                 "allowCrossTenantReplication": false,
-                "allowSharedKeyAccess": true,
+                "allowSharedKeyAccess": false,
                 "encryption": {
                   "keySource": "Microsoft.Storage",
                   "requireInfrastructureEncryption": false,
@@ -1018,6 +1018,14 @@
             "aiProjectName": {
               "type": "string",
               "value": "[variables('aiProjectName')]"
+            },
+            "applicationInsightsId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]"
+            },
+            "storageAccountName": {
+              "type": "string",
+              "value": "[variables('storageNameCleaned')]"
             }
           }
         }
@@ -1057,8 +1065,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "17222683008908251854"
+              "version": "0.33.93.31351",
+              "templateHash": "14620142974675285735"
             }
           },
           "parameters": {
@@ -1104,6 +1112,7 @@
               "properties": {
                 "minimumTlsVersion": "TLS1_2",
                 "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": false,
                 "isHnsEnabled": true,
                 "networkAcls": {
                   "bypass": "AzureServices",
@@ -1240,8 +1249,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "6528561682505001396"
+              "version": "0.33.93.31351",
+              "templateHash": "3100365088410602500"
             }
           },
           "parameters": {
@@ -1288,7 +1297,7 @@
           "resources": [
             {
               "copy": {
-                "name": "list",
+                "name": "database::list",
                 "count": "[length(variables('containers'))]"
               },
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
@@ -1446,8 +1455,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "6997300029110879816"
+              "version": "0.33.93.31351",
+              "templateHash": "6170430466600233564"
             }
           },
           "parameters": {
@@ -1620,8 +1629,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "1311463012511991186"
+              "version": "0.33.93.31351",
+              "templateHash": "509460209037223451"
             }
           },
           "parameters": {
@@ -1703,8 +1712,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "3736288497878109757"
+              "version": "0.33.93.31351",
+              "templateHash": "16955379019952955448"
             }
           },
           "parameters": {
@@ -1791,6 +1800,9 @@
               },
               "secretName": "SQLDB-PASSWORD"
             }
+          },
+          "storageAccountName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.storageAccountName.value]"
           }
         },
         "template": {
@@ -1799,8 +1811,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "3075889647785880770"
+              "version": "0.33.93.31351",
+              "templateHash": "4998991713682676077"
             }
           },
           "parameters": {
@@ -1827,28 +1839,17 @@
             },
             "imageTag": {
               "type": "string"
+            },
+            "storageAccountName": {
+              "type": "string"
             }
           },
           "variables": {
             "functionAppName": "[format('{0}-charts-fn', parameters('solutionName'))]",
-            "storageaccountname": "[format('{0}chartfnacc', parameters('solutionName'))]",
             "dockerImage": "[format('DOCKER|kmcontainerreg.azurecr.io/km-charts-function:{0}', parameters('imageTag'))]",
             "environmentName": "[format('{0}-charts-fn-env', parameters('solutionName'))]"
           },
           "resources": [
-            {
-              "type": "Microsoft.Storage/storageAccounts",
-              "apiVersion": "2023-05-01",
-              "name": "[variables('storageaccountname')]",
-              "location": "[resourceGroup().location]",
-              "sku": {
-                "name": "Standard_LRS"
-              },
-              "kind": "StorageV2",
-              "properties": {
-                "accessTier": "Hot"
-              }
-            },
             {
               "type": "Microsoft.App/managedEnvironments",
               "apiVersion": "2024-03-01",
@@ -1890,8 +1891,8 @@
                 "siteConfig": {
                   "appSettings": [
                     {
-                      "name": "AzureWebJobsStorage",
-                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix=core.windows.net', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageaccountname')), '2023-05-01', 'full'))]"
+                      "name": "AzureWebJobsStorage__accountname",
+                      "value": "[parameters('storageAccountName')]"
                     },
                     {
                       "name": "SQLDB_DATABASE",
@@ -1923,22 +1924,7 @@
                 "storageAccountRequired": false
               },
               "dependsOn": [
-                "[resourceId('Microsoft.App/managedEnvironments', variables('environmentName'))]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageaccountname'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageaccountname'))]",
-              "name": "[guid(subscription().id, resourceGroup().id, resourceId('Microsoft.Web/sites', variables('functionAppName')), 'StorageBlobDataContributor')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
-                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-12-01', 'full').identity.principalId]"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageaccountname'))]"
+                "[resourceId('Microsoft.App/managedEnvironments', variables('environmentName'))]"
               ]
             }
           ]
@@ -2026,6 +2012,9 @@
           },
           "aiProjectName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiProjectName.value]"
+          },
+          "storageAccountName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.storageAccountName.value]"
           }
         },
         "template": {
@@ -2034,8 +2023,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "7978725857339866942"
+              "version": "0.33.93.31351",
+              "templateHash": "11421360177429904471"
             }
           },
           "parameters": {
@@ -2089,28 +2078,17 @@
             },
             "imageTag": {
               "type": "string"
+            },
+            "storageAccountName": {
+              "type": "string"
             }
           },
           "variables": {
             "functionAppName": "[format('{0}-rag-fn', parameters('solutionName'))]",
-            "storageaccountname": "[format('{0}ragfnacc', parameters('solutionName'))]",
             "dockerImage": "[format('DOCKER|kmcontainerreg.azurecr.io/km-rag-function:{0}', parameters('imageTag'))]",
             "environmentName": "[format('{0}-rag-fn-env', parameters('solutionName'))]"
           },
           "resources": [
-            {
-              "type": "Microsoft.Storage/storageAccounts",
-              "apiVersion": "2023-05-01",
-              "name": "[variables('storageaccountname')]",
-              "location": "[resourceGroup().location]",
-              "sku": {
-                "name": "Standard_LRS"
-              },
-              "kind": "StorageV2",
-              "properties": {
-                "accessTier": "Hot"
-              }
-            },
             {
               "type": "Microsoft.App/managedEnvironments",
               "apiVersion": "2024-03-01",
@@ -2152,8 +2130,8 @@
                 "siteConfig": {
                   "appSettings": [
                     {
-                      "name": "AzureWebJobsStorage",
-                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix=core.windows.net', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageaccountname')), '2023-05-01', 'full'))]"
+                      "name": "AzureWebJobsStorage__accountname",
+                      "value": "[parameters('storageAccountName')]"
                     },
                     {
                       "name": "PYTHON_ENABLE_INIT_INDEXING",
@@ -2225,22 +2203,7 @@
                 "storageAccountRequired": false
               },
               "dependsOn": [
-                "[resourceId('Microsoft.App/managedEnvironments', variables('environmentName'))]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageaccountname'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageaccountname'))]",
-              "name": "[guid(subscription().id, resourceGroup().id, resourceId('Microsoft.Web/sites', variables('functionAppName')), 'StorageBlobDataContributor')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
-                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-12-01', 'full').identity.principalId]"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageaccountname'))]"
+                "[resourceId('Microsoft.App/managedEnvironments', variables('environmentName'))]"
               ]
             },
             {
@@ -2284,8 +2247,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "5504175264354263888"
+              "version": "0.33.93.31351",
+              "templateHash": "18414416216987649125"
             }
           },
           "parameters": {
@@ -2335,6 +2298,9 @@
         "parameters": {
           "imageTag": {
             "value": "[parameters('imageTag')]"
+          },
+          "applicationInsightsId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.applicationInsightsId.value]"
           },
           "solutionName": {
             "value": "[variables('solutionPrefix')]"
@@ -2396,8 +2362,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "10345305852452938336"
+              "version": "0.33.93.31351",
+              "templateHash": "5835426116727035307"
             }
           },
           "parameters": {
@@ -2443,13 +2409,6 @@
               "defaultValue": "[format('{0}-app-service', parameters('solutionName'))]",
               "metadata": {
                 "description": "Name of Web App"
-              }
-            },
-            "ApplicationInsightsName": {
-              "type": "string",
-              "defaultValue": "[format('{0}-app-insights', parameters('solutionName'))]",
-              "metadata": {
-                "description": "Name of Application Insights"
               }
             },
             "AzureOpenAIModel": {
@@ -2532,13 +2491,38 @@
             },
             "imageTag": {
               "type": "string"
+            },
+            "applicationInsightsId": {
+              "type": "string"
             }
           },
           "variables": {
             "WebAppImageName": "[format('DOCKER|kmcontainerreg.azurecr.io/km-app:{0}', parameters('imageTag'))]",
-            "REACT_APP_LAYOUT_CONFIG": "{\n  \"appConfig\": {\n    \"THREE_COLUMN\": {\n      \"DASHBOARD\": 50,\n      \"CHAT\": 33,\n      \"CHATHISTORY\": 17\n    },\n    \"TWO_COLUMN\": {\n      \"DASHBOARD_CHAT\": {\n        \"DASHBOARD\": 65,\n        \"CHAT\": 35\n      },\n      \"CHAT_CHATHISTORY\": {\n        \"CHAT\": 80,\n        \"CHATHISTORY\": 20\n      }\n    }\n  },\n  \"charts\": [\n    {\n      \"id\": \"SATISFIED\",\n      \"name\": \"Satisfied\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\n    },\n    {\n      \"id\": \"TOTAL_CALLS\",\n      \"name\": \"Total Calls\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\n    },\n    {\n      \"id\": \"AVG_HANDLING_TIME\",\n      \"name\": \"Average Handling Time\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\n    },\n    {\n      \"id\": \"SENTIMENT\",\n      \"name\": \"Topics Overview\",\n      \"type\": \"donutchart\",\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\n    },\n    {\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\n      \"name\": \"Average Handling Time By Topic\",\n      \"type\": \"bar\",\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\n    },\n    {\n      \"id\": \"TOPICS\",\n      \"name\": \"Trending Topics\",\n      \"type\": \"table\",\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\n    },\n    {\n      \"id\": \"KEY_PHRASES\",\n      \"name\": \"Key Phrases\",\n      \"type\": \"wordcloud\",\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\n    }\n  ]\n}"
+            "REACT_APP_LAYOUT_CONFIG": "{\r\n  \"appConfig\": {\r\n    \"THREE_COLUMN\": {\r\n      \"DASHBOARD\": 50,\r\n      \"CHAT\": 33,\r\n      \"CHATHISTORY\": 17\r\n    },\r\n    \"TWO_COLUMN\": {\r\n      \"DASHBOARD_CHAT\": {\r\n        \"DASHBOARD\": 65,\r\n        \"CHAT\": 35\r\n      },\r\n      \"CHAT_CHATHISTORY\": {\r\n        \"CHAT\": 80,\r\n        \"CHATHISTORY\": 20\r\n      }\r\n    }\r\n  },\r\n  \"charts\": [\r\n    {\r\n      \"id\": \"SATISFIED\",\r\n      \"name\": \"Satisfied\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\r\n    },\r\n    {\r\n      \"id\": \"TOTAL_CALLS\",\r\n      \"name\": \"Total Calls\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME\",\r\n      \"name\": \"Average Handling Time\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"SENTIMENT\",\r\n      \"name\": \"Topics Overview\",\r\n      \"type\": \"donutchart\",\r\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\r\n      \"name\": \"Average Handling Time By Topic\",\r\n      \"type\": \"bar\",\r\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\r\n    },\r\n    {\r\n      \"id\": \"TOPICS\",\r\n      \"name\": \"Trending Topics\",\r\n      \"type\": \"table\",\r\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\r\n    },\r\n    {\r\n      \"id\": \"KEY_PHRASES\",\r\n      \"name\": \"Key Phrases\",\r\n      \"type\": \"wordcloud\",\r\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\r\n    }\r\n  ]\r\n}"
           },
           "resources": [
+            {
+              "type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', parameters('WebsiteName'), 'ftp')]",
+              "properties": {
+                "allow": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('WebsiteName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', parameters('WebsiteName'), 'scm')]",
+              "properties": {
+                "allow": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('WebsiteName'))]"
+              ]
+            },
             {
               "type": "Microsoft.Web/serverfarms",
               "apiVersion": "2020-06-01",
@@ -2564,10 +2548,12 @@
               "properties": {
                 "serverFarmId": "[parameters('HostingPlanName')]",
                 "siteConfig": {
+                  "alwaysOn": true,
+                  "ftpsState": "Disabled",
                   "appSettings": [
                     {
                       "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-                      "value": "[reference(resourceId('Microsoft.Insights/components', parameters('ApplicationInsightsName')), '2015-05-01').InstrumentationKey]"
+                      "value": "[reference(parameters('applicationInsightsId'), '2015-05-01').InstrumentationKey]"
                     },
                     {
                       "name": "AZURE_OPENAI_API_VERSION",
@@ -2658,22 +2644,8 @@
                 }
               },
               "dependsOn": [
-                "[resourceId('Microsoft.Insights/components', parameters('ApplicationInsightsName'))]",
                 "[resourceId('Microsoft.Web/serverfarms', parameters('HostingPlanName'))]"
               ]
-            },
-            {
-              "type": "Microsoft.Insights/components",
-              "apiVersion": "2020-02-02",
-              "name": "[parameters('ApplicationInsightsName')]",
-              "location": "[resourceGroup().location]",
-              "tags": {
-                "[format('hidden-link:{0}', resourceId('Microsoft.Web/sites', parameters('ApplicationInsightsName')))]": "Resource"
-              },
-              "properties": {
-                "Application_Type": "web"
-              },
-              "kind": "web"
             },
             {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
@@ -2688,7 +2660,13 @@
                 "[resourceId('Microsoft.Web/sites', parameters('WebsiteName'))]"
               ]
             }
-          ]
+          ],
+          "outputs": {
+            "webAppUrl": {
+              "type": "string",
+              "value": "[format('https://{0}.azurewebsites.net', parameters('WebsiteName'))]"
+            }
+          }
         }
       },
       "dependsOn": [
@@ -2698,5 +2676,11 @@
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_sql_db')]"
       ]
     }
-  ]
+  ],
+  "outputs": {
+    "WEB_APP_URL": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_app_service'), '2022-09-01').outputs.webAppUrl.value]"
+    }
+  }
 }

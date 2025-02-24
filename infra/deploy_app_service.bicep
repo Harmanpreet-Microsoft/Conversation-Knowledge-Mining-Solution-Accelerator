@@ -25,8 +25,8 @@ param HostingPlanSku string = 'P0v3'
 @description('Name of Web App')
 param WebsiteName string = '${ solutionName }-app-service'
 
-@description('Name of Application Insights')
-param ApplicationInsightsName string = '${ solutionName }-app-insights'
+// @description('Name of Application Insights')
+// param ApplicationInsightsName string = '${ solutionName }-app-insights'
 
 @description('Azure OpenAI Model Deployment Name')
 param AzureOpenAIModel string
@@ -64,6 +64,7 @@ param AZURE_COSMOSDB_DATABASE string = ''
 param AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
 
 param imageTag string
+param applicationInsightsId string
 // var WebAppImageName = 'DOCKER|byoaiacontainer.azurecr.io/byoaia-app:latest'
 
 // var WebAppImageName = 'DOCKER|ncwaappcontainerreg1.azurecr.io/ncqaappimage:v1.0.0'
@@ -155,10 +156,12 @@ resource Website 'Microsoft.Web/sites@2020-06-01' = {
   properties: {
     serverFarmId: HostingPlanName
     siteConfig: {
+      alwaysOn: true
+      ftpsState: 'Disabled'
       appSettings: [
         {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
-          value: reference(ApplicationInsights.id, '2015-05-01').InstrumentationKey
+          value: reference(applicationInsightsId, '2015-05-01').InstrumentationKey
         }
         {
           name: 'AZURE_OPENAI_API_VERSION'
@@ -225,20 +228,32 @@ resource Website 'Microsoft.Web/sites@2020-06-01' = {
       linuxFxVersion: WebAppImageName
     }
   }
+  resource basicPublishingCredentialsPoliciesFtp 'basicPublishingCredentialsPolicies' = {
+    name: 'ftp'
+    properties: {
+      allow: false
+    }
+  }
+  resource basicPublishingCredentialsPoliciesScm 'basicPublishingCredentialsPolicies' = {
+    name: 'scm'
+    properties: {
+      allow: false
+    }
+  }
   dependsOn: [HostingPlan]
 }
 
-resource ApplicationInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: ApplicationInsightsName
-  location: resourceGroup().location
-  tags: {
-    'hidden-link:${resourceId('Microsoft.Web/sites',ApplicationInsightsName)}': 'Resource'
-  }
-  properties: {
-    Application_Type: 'web'
-  }
-  kind: 'web'
-}
+// resource ApplicationInsights 'Microsoft.Insights/components@2020-02-02' = {
+//   name: ApplicationInsightsName
+//   location: resourceGroup().location
+//   tags: {
+//     'hidden-link:${resourceId('Microsoft.Web/sites',ApplicationInsightsName)}': 'Resource'
+//   }
+//   properties: {
+//     Application_Type: 'web'
+//   }
+//   kind: 'web'
+// }
 
 resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2022-08-15' existing = {
   name: AZURE_COSMOSDB_ACCOUNT
@@ -259,4 +274,5 @@ resource role 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2022-05-
   dependsOn: [Website]
 }
 
+output webAppUrl string = 'https://${WebsiteName}.azurewebsites.net'
 

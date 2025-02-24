@@ -26,6 +26,7 @@ resource storageAccounts_resource 'Microsoft.Storage/storageAccounts@2022-09-01'
   properties: {
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
     isHnsEnabled: true
     networkAcls: {
       bypass: 'AzureServices'
