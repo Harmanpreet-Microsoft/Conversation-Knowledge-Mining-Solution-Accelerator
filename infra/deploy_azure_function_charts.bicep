@@ -18,6 +18,11 @@ var environmentName = '${solutionName}-charts-fn-env'
 // var sqlDbUser = 'sqladmin'
 // var sqlDbPwd = 'TestPassword_1234'
 
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${ solutionName }-managed-identity'
+  location: solutionLocation
+}
+
 resource managedenv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: environmentName
   location: solutionLocation
@@ -50,7 +55,10 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
   location: solutionLocation
   kind: 'functionapp,linux,container,azurecontainerapps'
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned, UserAssigned' 
+    userAssignedIdentities: {
+      '${managedIdentity.id}': {}
+    }
   }
   properties: {
     siteConfig: {

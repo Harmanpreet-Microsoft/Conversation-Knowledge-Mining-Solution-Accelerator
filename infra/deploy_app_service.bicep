@@ -83,6 +83,8 @@ resource HostingPlan 'Microsoft.Web/serverfarms@2020-06-01' = {
   }
   kind: 'linux'
 }
+
+
 var REACT_APP_LAYOUT_CONFIG ='''{
   "appConfig": {
     "THREE_COLUMN": {
@@ -146,12 +148,19 @@ var REACT_APP_LAYOUT_CONFIG ='''{
     }
   ]
 }'''
-
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${solutionName}-identity'
+  location: resourceGroup().location
+}
 resource Website 'Microsoft.Web/sites@2020-06-01' = {
   name: WebsiteName
   location: resourceGroup().location
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned, UserAssigned' 
+    userAssignedIdentities: {
+      '${managedIdentity.id}': {}
+    }
+  
   }
   properties: {
     serverFarmId: HostingPlanName

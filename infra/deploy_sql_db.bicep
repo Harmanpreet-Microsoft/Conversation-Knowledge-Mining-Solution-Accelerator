@@ -4,6 +4,17 @@
 param solutionName string
 param solutionLocation string
 param keyVaultName string
+type FirewallRules = {
+  @description('The list of IP address CIDR blocks to allow access from.')
+  allowedIpAddresses: string[]
+}
+@description('Whether or not public endpoint access is allowed for this server')
+param enablePublicNetworkAccess bool = true
+
+@description('The firewall rules to install on the sql-server.')
+param firewallRules FirewallRules?
+@description('The Name of a user-assigned managed identity to use as the identity for this resource.  Use a blank string for a system-assigned identity.')
+param managedIdentityName string = '${ solutionName }-managed-identity'
 // param managedIdentityObjectId string
 
 // @description('The name of the SQL logical server.')
@@ -28,19 +39,38 @@ var location = solutionLocation
 var administratorLogin = 'sqladmin'
 var administratorLoginPassword = 'TestPassword_1234'
 
-resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: serverName
-  location: location
-  kind:'v12.0'
-  properties: {
-      administratorLogin: administratorLogin
-      administratorLoginPassword: administratorLoginPassword
-      publicNetworkAccess: 'Enabled'
-      version: '12.0'
-      restrictOutboundNetworkAccess: 'Disabled'
-    }
+// resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
+//   name: serverName
+//   location: location
+//   kind:'v12.0'
+//   properties: {
+//       administratorLogin: administratorLogin
+//       administratorLoginPassword: administratorLoginPassword
+//       publicNetworkAccess: 'Enabled'
+//       version: '12.0'
+//       restrictOutboundNetworkAccess: 'Disabled'
+//     }
+// }
+
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: managedIdentityName
 }
 
+resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
+  name: serverName
+  location: location
+ 
+  properties: {
+    administrators: {
+      azureADOnlyAuthentication: true
+      login: managedIdentity.name
+      principalType: 'User'
+      sid: managedIdentity.properties.principalId
+      tenantId: managedIdentity.properties.tenantId
+    }
+    publicNetworkAccess: enablePublicNetworkAccess || firewallRules != null ? 'Enabled' : 'Disabled'
+    version: '12.0'
+  }}
 resource firewallRule 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
   name: 'AllowSpecificRange'
   parent: sqlServer
@@ -114,7 +144,19 @@ resource sqldbDatabasePwd 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview'
     value: administratorLoginPassword
   }
 }
-
+module sqluser 'create-sql-user-and-role.bicep' = [for user in users: {
+  name: 'sqluser-${guid(location, user.principalId, user.principalName, name, sqlServer.name)}'
+  params: {
+    managedIdentityId: managedIdentity.id
+    principalId: user.principalId
+    principalName: user.principalName
+    sqlDatabaseName: sqlDBName
+    location: location
+    sqlServerName: sqlServer.name
+    databaseRoles: ['db_owner']
+  }
+  dependsOn: [ sqlDBName ]
+}]
 output sqlServerName string = '${serverName}.database.windows.net'
 output sqlDbName string = sqlDBName
 output sqlDbUser string = administratorLogin
