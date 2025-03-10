@@ -274,5 +274,37 @@ resource role 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2022-05-
   dependsOn: [Website]
 }
 
-output webAppUrl string = 'https://${WebsiteName}.azurewebsites.net'
+resource WebsiteAuth 'Microsoft.Web/sites/config@2020-12-01' = {
+  name: '${WebsiteName}/authsettingsV2'
+  properties: {
+    platform: {
+      enabled: true
+      tenantId: subscription().tenantId
+    }
+    globalValidation: {
+      unauthenticatedClientAction: 'RedirectToLoginPage'
+    }
+    identityProviders: {
+      azureActiveDirectory: {
+        enabled: true
+        login: {
+          loginParameters: []
+          preserveUrlFragmentsForLogins: false
+        }
+        validation: {
+          allowedAudiences: [
+            'api://$(Website.identity.principalId)'  
+          ]
+        }
+        registration: {
+          clientId: Website.identity.principalId 
+          openIdIssuer: 'https://login.microsoftonline.com/{tenantId}/v2.0' 
+        }
+      }
+    }
+  }
+  dependsOn: [Website]
+}
 
+
+output webAppUrl string = 'https://${WebsiteName}.azurewebsites.net'
