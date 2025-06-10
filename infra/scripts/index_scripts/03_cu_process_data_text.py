@@ -6,14 +6,15 @@ from azure.keyvault.secrets import SecretClient
 from openai import AzureOpenAI
 import pandas as pd
 
-import pymssql
 import re
 
 from datetime import datetime
 import time
-import base64
+import pyodbc
+import struct
 
 key_vault_name = 'kv_to-be-replaced'
+managed_identity_client_id = 'mici_to-be-replaced'
 
 file_system_client_name = "data"
 directory = 'call_transcripts'
@@ -22,7 +23,7 @@ audio_directory = 'audiodata'
 def get_secrets_from_kv(kv_name, secret_name):
     # Set the name of the Azure Key Vault  
     key_vault_name = kv_name 
-    credential = DefaultAzureCredential()
+    credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 
     # Create a secret client object using the credential and Key Vault name  
     secret_client =  SecretClient(vault_url=f"https://{key_vault_name}.vault.azure.net/", credential=credential)  
@@ -32,19 +33,21 @@ def get_secrets_from_kv(kv_name, secret_name):
 search_endpoint = get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-ENDPOINT")
 search_key =  get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-KEY")
 
-openai_api_key  =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-KEY")
 openai_api_base =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-ENDPOINT")
 openai_api_version = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-PREVIEW-API-VERSION") 
-deployment =  get_secrets_from_kv(key_vault_name,"AZURE-OPEN-AI-DEPLOYMENT-MODEL")  #"gpt-4o-mini"
+deployment =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-DEPLOYMENT-MODEL")  #"gpt-4o-mini"
 
 
 # Function: Get Embeddings 
-def get_embeddings(text: str,openai_api_base,openai_api_version,openai_api_key):
+def get_embeddings(text: str,openai_api_base,openai_api_version):
     model_id = "text-embedding-ada-002"
+    token_provider = get_bearer_token_provider(
+        DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id), "https://cognitiveservices.azure.com/.default"
+    )
     client = AzureOpenAI(
         api_version=openai_api_version,
         azure_endpoint=openai_api_base,
-        api_key = openai_api_key
+        azure_ad_token_provider=token_provider
     )
     
     embedding = client.embeddings.create(input=text, model=model_id).data[0].embedding
@@ -97,16 +100,14 @@ def chunk_data(text):
 
 from azure.search.documents import SearchClient
 from azure.storage.filedatalake import (
-    DataLakeServiceClient,
-    DataLakeDirectoryClient,
-    FileSystemClient
+    DataLakeServiceClient
 )
 
 account_name =  get_secrets_from_kv(key_vault_name, "ADLS-ACCOUNT-NAME")
 
 account_url = f"https://{account_name}.dfs.core.windows.net"
 
-credential = DefaultAzureCredential()
+credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 service_client = DataLakeServiceClient(account_url, credential=credential,api_version='2023-01-03') 
 
 file_system_client = service_client.get_file_system_client(file_system_client_name)  
@@ -117,32 +118,33 @@ print(paths)
 index_name = "call_transcripts_index"
 
 from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes.models import (
-    SimpleField,
-    SearchFieldDataType,
-    SearchableField,
-    SearchField,
-    VectorSearch,
-    HnswAlgorithmConfiguration,
-    VectorSearchProfile,
-    SemanticConfiguration,
-    SemanticPrioritizedFields,
-    SemanticField,
-    SemanticSearch,
-    SearchIndex
-)
+
 search_credential = AzureKeyCredential(search_key)
 
 search_client = SearchClient(search_endpoint, index_name, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 
+driver = "{ODBC Driver 17 for SQL Server}"
 server =  get_secrets_from_kv(key_vault_name,"SQLDB-SERVER")
 database = get_secrets_from_kv(key_vault_name,"SQLDB-DATABASE")
-username =  get_secrets_from_kv(key_vault_name,"SQLDB-USERNAME")
-password =  get_secrets_from_kv(key_vault_name,"SQLDB-PASSWORD")
 
+credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 
-conn = pymssql.connect(server, username, password, database)
+token_bytes = credential.get_token(
+    "https://database.windows.net/.default"
+).token.encode("utf-16-LE")
+token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+SQL_COPT_SS_ACCESS_TOKEN = (
+    1256  # This connection option is defined by microsoft in msodbcsql.h
+)
+
+# Set up the connection
+connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+conn = pyodbc.connect(
+    connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+)
+
+# conn = pymssql.connect(server, username, password, database)
 cursor = conn.cursor()
 print("Connected to the database")
 cursor.execute('DROP TABLE IF EXISTS processed_data')
@@ -183,7 +185,7 @@ AZURE_AI_ENDPOINT = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-ENDPOINT
 AZURE_OPENAI_CU_KEY = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-KEY")
 AZURE_AI_API_VERSION = "2024-12-01-preview" 
 
-credential = DefaultAzureCredential()
+credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 
 client = AzureContentUnderstandingClient(
@@ -204,11 +206,11 @@ def prepare_search_doc(content, document_id):
         chunk_id = document_id + '_' + str(chunk_num).zfill(2)
         
         try:
-            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
+            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
         except:
             time.sleep(30)
             try: 
-                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
+                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
             except: 
                 v_contentVector = []
         result = {
@@ -247,6 +249,7 @@ for path in paths:
         duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
         end_timestamp = str(start_timestamp + timedelta(seconds=duration))
         end_timestamp = end_timestamp.split(".")[0]
+        start_timestamp = str(start_timestamp).split(".")[0]
 
         summary = result['result']['contents'][0]['fields']['summary']['valueString']
         satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
@@ -256,12 +259,12 @@ for path in paths:
         complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
         content = result['result']['contents'][0]['fields']['content']['valueString']
 
-        cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
+        cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
         conn.commit()
         
         # keyPhrases = key_phrases.split(',')
         # for keyPhrase in keyPhrases:
-        #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (%s,%s,%s)", (conversation_id, keyPhrase, sentiment))
+        #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
 
         document_id = conversation_id
 
@@ -319,12 +322,12 @@ if docs != []:
 #         complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
 #         content = result['result']['contents'][0]['fields']['content']['valueString']
 #         # print(topic)
-#         cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
+#         cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
 #         conn.commit()
     
 #         # keyPhrases = key_phrases.split(',')
 #         # for keyPhrase in keyPhrases:
-#         #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (%s,%s,%s)", (conversation_id, keyPhrase, sentiment))
+#         #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
 
 #         document_id = conversation_id
 
@@ -361,13 +364,20 @@ import_table = 'processed_data'
 with open(sample_processed_data_file, "r") as f:
     data = json.load(f)
 
-data_list = [list(record.values()) for record in data]
-conn.bulk_copy(import_table,data_list)
+# Convert data to list of tuples for pyodbc
+data_list = [tuple(record.values()) for record in data]
+columns = ", ".join(data[0].keys())  # Extract column names from first record
+placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
+
+sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+
+# Bulk insert using executemany()
+cursor.executemany(sql, data_list)
 conn.commit()
 
 # for row in data:
 #     columns = ", ".join(row.keys()) 
-#     placeholders = ", ".join(["%s"] * len(row))  
+#     placeholders = ", ".join(["?"] * len(row))  
 #     values = tuple(row.values())  
 
 #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
@@ -382,13 +392,19 @@ import_table = 'processed_data_key_phrases'
 with open(sample_processed_data_file, "r") as f:
     data = json.load(f)
 
-data_list = [list(record.values()) for record in data]
-conn.bulk_copy(import_table,data_list)
+data_list = [tuple(record.values()) for record in data]
+columns = ", ".join(data[0].keys())  # Extract column names from first record
+placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
+
+sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+
+# Bulk insert using executemany()
+cursor.executemany(sql, data_list)
 conn.commit()
 
 # for row in data:
 #     columns = ", ".join(row.keys()) 
-#     placeholders = ", ".join(["%s"] * len(row))  
+#     placeholders = ", ".join(["?"] * len(row))  
 #     values = tuple(row.values())  
 
 #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
@@ -401,7 +417,8 @@ conn.commit()
 
 sql_stmt = 'SELECT distinct topic FROM processed_data'
 cursor.execute(sql_stmt)
-rows = cursor.fetchall()
+
+rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
 df = pd.DataFrame(rows, columns=column_names)
 
@@ -420,9 +437,12 @@ conn.commit()
 
 topics_str = ', '.join(df['topic'].tolist())
 
+token_provider = get_bearer_token_provider(
+    DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id), "https://cognitiveservices.azure.com/.default"
+)
 client = AzureOpenAI(  
         azure_endpoint=openai_api_base,  
-        api_key=openai_api_key,  
+        azure_ad_token_provider=token_provider,  
         api_version=openai_api_version,  
     )
 
@@ -440,7 +460,7 @@ def call_gpt4(topics_str1, client):
         If the input data is insufficient for reliable topic modeling, indicate that more data is needed rather than making assumptions. 
         Ensure that the topics and labels are accurate, relevant, and easy to understand.
 
-        Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attriubtes in json.
+        Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
     # Phi-3 model client
@@ -539,7 +559,7 @@ res = call_gpt4(topics_str, client)
 topics_object = res #json.loads(res)
 reduced_data = []
 for object1 in topics_object['topics']:
-    cursor.execute(f"INSERT INTO km_mined_topics (label, description) VALUES (%s,%s)", (object1['label'], object1['description']))
+    cursor.execute(f"INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 print("function completed")
 # print(res)
 conn.commit()
@@ -547,7 +567,7 @@ conn.commit()
 sql_stmt = 'SELECT label FROM km_mined_topics'
 cursor.execute(sql_stmt)
 
-rows = cursor.fetchall()
+rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
 df_topics = pd.DataFrame(rows, columns=column_names)
 
@@ -558,7 +578,7 @@ mined_topics =  ", ".join(mined_topics_list)
 def get_mined_topic_mapping(input_text, list_of_topics):
     prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
                 from a list of topics - {list_of_topics}.
-                ALLWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
+                ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
 
     # Phi-3 model client
     # response = client.complete(
@@ -586,7 +606,7 @@ def get_mined_topic_mapping(input_text, list_of_topics):
 sql_stmt = 'SELECT * FROM processed_data'
 cursor.execute(sql_stmt)
 
-rows = cursor.fetchall()
+rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
 df_processed_data = pd.DataFrame(rows, columns=column_names)
 counter = 0
@@ -596,7 +616,7 @@ df_processed_data = df_processed_data[df_processed_data['ConversationId'].isin(c
 for index, row in df_processed_data.iterrows():
     # print(row['topic'])
     mined_topic_str = get_mined_topic_mapping(row['topic'], str(mined_topics_list))
-    cursor.execute(f"UPDATE processed_data SET mined_topic = %s WHERE ConversationId = %s", (mined_topic_str, row['ConversationId']))
+    cursor.execute(f"UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
     # print(f"Updated mined_topic for ConversationId: {row['ConversationId']}")
 conn.commit()
 
@@ -627,11 +647,22 @@ cursor.execute(sql_stmt)
 rows = cursor.fetchall()
 data_list = [list(row) for row in rows]
 import_table = 'km_processed_data'
-conn.bulk_copy(import_table,data_list)
+
+columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment", 
+           "keyphrases", "complaint", "topic"]
+columns_str = ", ".join(columns)
+placeholders = ", ".join(["?"] * len(columns))  # Generate `?` placeholders for values
+
+# Insert statement
+insert_sql = f"INSERT INTO {import_table} ({columns_str}) VALUES ({placeholders})"
+
+# Bulk insert using executemany()
+cursor.executemany(insert_sql, data_list)
+
 # column_names = [i[0] for i in cursor.description]
 # df = pd.DataFrame(rows, columns=column_names)
 # for idx, row in df.iterrows():
-#     cursor.execute(f"INSERT INTO km_processed_data (ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment, keyphrases, complaint, topic) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (row['ConversationId'], row['StartTime'], row['EndTime'], row['Content'], row['summary'], row['satisfied'], row['sentiment'], row['keyphrases'], row['complaint'], row['topic']))
+#     cursor.execute(f"INSERT INTO km_processed_data (ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment, keyphrases, complaint, topic) VALUES (?,?,?,?,?,?,?,?,?,?)", (row['ConversationId'], row['StartTime'], row['EndTime'], row['Content'], row['summary'], row['satisfied'], row['sentiment'], row['keyphrases'], row['complaint'], row['topic']))
 conn.commit()
 
 # update keyphrase table after the data update
@@ -652,7 +683,7 @@ conn.commit()
 
 sql_stmt = '''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data'''
 cursor.execute(sql_stmt)
-rows = cursor.fetchall()
+rows = [tuple(row) for row in cursor.fetchall()]
 
 column_names = [i[0] for i in cursor.description]
 df = pd.DataFrame(rows, columns=column_names)
@@ -664,7 +695,7 @@ for idx, row in df.iterrows():
     key_phrases = row['key_phrases'].split(',')
     for key_phrase in key_phrases:
         key_phrase = key_phrase.strip()
-        cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (%s,%s,%s,%s,%s)", (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
+        cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)", (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
 conn.commit()
 
 # to adjust the dates to current date
@@ -677,11 +708,11 @@ max_start_time = cursor.fetchone()[0]
 days_difference = (today - max_start_time).days - 1 if max_start_time else 0
 
 # Update processed_data table
-cursor.execute(f"UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, %s, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, %s, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
+cursor.execute(f"UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 # Update km_processed_data table
-cursor.execute(f"UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, %s, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, %s, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
+cursor.execute(f"UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 # Update processed_data_key_phrases table
-cursor.execute(f"UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, %s, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
+cursor.execute(f"UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference))
 
 conn.commit()
 cursor.close()

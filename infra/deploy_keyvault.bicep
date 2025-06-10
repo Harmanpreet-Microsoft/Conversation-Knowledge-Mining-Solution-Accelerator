@@ -1,11 +1,7 @@
-@minLength(3)
-@maxLength(15)
-@description('Solution Name')
-param solutionName string
 param solutionLocation string
 param managedIdentityObjectId string
 
-var keyvaultName = '${solutionName}-kv'
+param keyvaultName string
 
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
   name: keyvaultName
@@ -35,9 +31,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
     enabledForDeployment: true
     enabledForDiskEncryption: true
     enabledForTemplateDeployment: true
-    enableSoftDelete: false
     enableRbacAuthorization: true
-    enablePurgeProtection: true
     publicNetworkAccess: 'enabled'
     // networkAcls: {
     //   bypass: 'AzureServices'
@@ -69,3 +63,4 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 output keyvaultName string = keyvaultName
 output keyvaultId string = keyVault.id
+output keyvaultUri string = keyVault.properties.vaultUri

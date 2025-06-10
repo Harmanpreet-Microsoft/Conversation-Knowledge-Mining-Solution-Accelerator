@@ -1,18 +1,17 @@
 // ========== main.bicep ========== //
 targetScope = 'resourceGroup'
-
+var abbrs = loadJsonContent('./abbreviations.json')
 @minLength(3)
 @maxLength(20)
 @description('A unique prefix for all resources in this deployment. This should be 3-20 characters long:')
 param environmentName string
 
+@description('Optional: Existing Log Analytics Workspace Resource ID')
+param existingLogAnalyticsWorkspaceId string = ''
+
 @minLength(1)
 @description('Location for the Content Understanding service deployment:')
-@allowed(['westus'
-'swedencentral' 
-'australiaeast'
-])
-
+@allowed(['swedencentral', 'australiaeast'])
 @metadata({
   azd: {
     type: 'location'
@@ -32,19 +31,14 @@ param secondaryLocation string
 ])
 param deploymentType string = 'GlobalStandard'
 
-@minLength(1)
 @description('Name of the GPT model to deploy:')
-@allowed([
-  'gpt-4o-mini'
-  'gpt-4o'
-  'gpt-4'
-])
 param gptModelName string = 'gpt-4o-mini'
 
-// @minLength(1)
-// @description('Version of the GPT model to deploy:')
-// param gptModelVersion string = '2024-02-15-preview' //'2024-08-06'
-var gptModelVersion = '2024-02-15-preview'
+@description('Version of the GPT model to deploy:')
+param gptModelVersion string = '2024-07-18'
+
+param azureOpenAIApiVersion string = '2025-01-01-preview'
+
 
 @minValue(10)
 @description('Capacity of the GPT deployment:')
@@ -59,26 +53,26 @@ param gptDeploymentCapacity int = 30
 ])
 param embeddingModel string = 'text-embedding-ada-002'
 
-
 @minValue(10)
 @description('Capacity of the Embedding Model deployment')
 param embeddingDeploymentCapacity int = 80
 
 param imageTag string = 'latest'
 
-var uniqueId = toLower(uniqueString(subscription().id, environmentName, resourceGroup().location))
+param AZURE_LOCATION string=''
+var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
+
+var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation))
 var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
-var resourceGroupLocation = resourceGroup().location
 // var resourceGroupName = resourceGroup().name
 
-var solutionLocation = resourceGroupLocation
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
-
 
 // ========== Managed Identity ========== //
 module managedIdentityModule 'deploy_managed_identity.bicep' = {
   name: 'deploy_managed_identity'
   params: {
+    miName:'${abbrs.security.managedIdentity}${solutionPrefix}'
     solutionName: solutionPrefix
     solutionLocation: solutionLocation
   }
@@ -89,8 +83,8 @@ module managedIdentityModule 'deploy_managed_identity.bicep' = {
 module kvault 'deploy_keyvault.bicep' = {
   name: 'deploy_keyvault'
   params: {
-    solutionName: solutionPrefix
-    solutionLocation: resourceGroupLocation
+    keyvaultName: '${abbrs.security.keyVault}${solutionPrefix}'
+    solutionLocation: solutionLocation
     managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
   }
   scope: resourceGroup(resourceGroup().name)
@@ -101,16 +95,19 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
   name: 'deploy_ai_foundry'
   params: {
     solutionName: solutionPrefix
-    solutionLocation: resourceGroupLocation
+    solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
     cuLocation: contentUnderstandingLocation
     deploymentType: deploymentType
     gptModelName: gptModelName
     gptModelVersion: gptModelVersion
+    azureOpenAIApiVersion: azureOpenAIApiVersion
     gptDeploymentCapacity: gptDeploymentCapacity
     embeddingModel: embeddingModel
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
-    managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
+    managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
+    existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -119,10 +116,10 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
 module storageAccount 'deploy_storage_account.bicep' = {
   name: 'deploy_storage_account'
   params: {
-    solutionName: solutionPrefix
+    saName: '${abbrs.storage.storageAccount}${solutionPrefix}'
     solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
-    managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
+    managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -131,7 +128,7 @@ module storageAccount 'deploy_storage_account.bicep' = {
 module cosmosDBModule 'deploy_cosmos_db.bicep' = {
   name: 'deploy_cosmos_db'
   params: {
-    solutionName: solutionPrefix
+    accountName: '${abbrs.databases.cosmosDBDatabase}${solutionPrefix}'
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
   }
@@ -142,9 +139,12 @@ module cosmosDBModule 'deploy_cosmos_db.bicep' = {
 module sqlDBModule 'deploy_sql_db.bicep' = {
   name: 'deploy_sql_db'
   params: {
-    solutionName: solutionPrefix
+    serverName: '${abbrs.databases.sqlDatabaseServer}${solutionPrefix}'
+    sqlDBName: '${abbrs.databases.sqlDatabase}${solutionPrefix}'
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
+    managedIdentityName: managedIdentityModule.outputs.managedIdentityOutput.name
+    managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -156,110 +156,132 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
 }
 
 //========== Deployment script to upload sample data ========== //
-module uploadFiles 'deploy_upload_files_script.bicep' = {
-  name : 'deploy_upload_files_script'
+module uploadFiles 'deploy_post_deployment_scripts.bicep' = {
+  name : 'deploy_post_deployment_scripts'
   params:{
-    solutionLocation: solutionLocation
+    solutionLocation: secondaryLocation
     baseUrl: baseUrl
     storageAccountName: storageAccount.outputs.storageName
     containerName: storageAccount.outputs.storageContainer
+    containerAppName: '${abbrs.containers.containerApp}${solutionPrefix}'
+    environmentName: '${abbrs.containers.containerAppsEnvironment}${solutionPrefix}'
     managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.id
-  }
-  // dependsOn:[storageAccount,keyVault]
-}
-
-//========== Deployment script to process and index data ========== //
-module createIndex 'deploy_index_scripts.bicep' = {
-  name : 'deploy_index_scripts'
-  params:{
-    solutionLocation: solutionLocation
-    identity:managedIdentityModule.outputs.managedIdentityOutput.id
-    baseUrl:baseUrl
+    managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
     keyVaultName:aifoundry.outputs.keyvaultName
-  }
-  dependsOn:[keyVault,sqlDBModule,uploadFiles]
-}
-
-//========== Azure functions module ========== //
-module azureFunctionsCharts 'deploy_azure_function_charts.bicep' = {
-  name : 'deploy_azure_function_charts'
-  params:{
-    imageTag: imageTag
-    solutionName: solutionPrefix
-    solutionLocation: solutionLocation
+    logAnalyticsWorkspaceResourceName: aifoundry.outputs.logAnalyticsWorkspaceResourceName
+    logAnalyticsWorkspaceResourceGroup: aifoundry.outputs.logAnalyticsWorkspaceResourceGroup
+    logAnalyticsWorkspaceSubscription: aifoundry.outputs.logAnalyticsWorkspaceSubscription
     sqlServerName: sqlDBModule.outputs.sqlServerName
     sqlDbName: sqlDBModule.outputs.sqlDbName
-    sqlDbUser: sqlDBModule.outputs.sqlDbUser
-    sqlDbPwd:keyVault.getSecret('SQLDB-PASSWORD')
-    // managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
-    storageAccountName:aifoundry.outputs.storageAccountName
+    sqlUsers: [
+      {
+        principalId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
+        principalName: managedIdentityModule.outputs.managedIdentityBackendAppOutput.name
+        databaseRoles: ['db_datareader', 'db_datawriter']
+      }
+    ]
   }
-  dependsOn:[keyVault]
 }
 
-//========== Azure functions module ========== //
-module azureragFunctionsRag 'deploy_azure_function_rag.bicep' = {
-  name : 'deploy_azure_function_rag'
-  params:{
-    imageTag: imageTag
-    solutionName: solutionPrefix
-    solutionLocation: solutionLocation
-    azureOpenAIApiKey:keyVault.getSecret('AZURE-OPENAI-KEY')
-    azureOpenAIEndpoint:aifoundry.outputs.aiServicesTarget
-    azureOpenAIDeploymentModel:gptModelName
-    azureSearchAdminKey:keyVault.getSecret('AZURE-SEARCH-KEY')
-    azureSearchServiceEndpoint:aifoundry.outputs.aiSearchTarget
-    azureOpenAIApiVersion: gptModelVersion //'2024-02-15-preview'
-    azureAiProjectConnString:keyVault.getSecret('AZURE-AI-PROJECT-CONN-STRING')
-    azureSearchIndex:'call_transcripts_index'
-    sqlServerName:sqlDBModule.outputs.sqlServerName
-    sqlDbName:sqlDBModule.outputs.sqlDbName
-    sqlDbUser:sqlDBModule.outputs.sqlDbUser
-    sqlDbPwd:keyVault.getSecret('SQLDB-PASSWORD')
-    aiProjectName:aifoundry.outputs.aiProjectName
-    // managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
-    storageAccountName:aifoundry.outputs.storageAccountName
-  }
-  dependsOn:[keyVault]
-}
-
-module azureFunctionURL 'deploy_azure_function_urls.bicep' = {
-  name : 'deploy_azure_function_urls'
-  params:{
-    solutionName: solutionPrefix
-    // identity:managedIdentityModule.outputs.managedIdentityOutput.id
-  }
-  dependsOn:[azureFunctionsCharts,azureragFunctionsRag]
-}
-
-//========== App service module ========== //
-module appserviceModule 'deploy_app_service.bicep' = {
-  name: 'deploy_app_service'
+module hostingplan 'deploy_app_service_plan.bicep' = {
+  name: 'deploy_app_service_plan'
   params: {
+    solutionLocation: solutionLocation
+    HostingPlanName: '${abbrs.compute.appServicePlan}${solutionPrefix}'
+  }
+}
+
+module backend_docker 'deploy_backend_docker.bicep' = {
+  name: 'deploy_backend_docker'
+  params: {
+    name: 'api-${solutionPrefix}'
+    solutionLocation: solutionLocation
     imageTag: imageTag
+    appServicePlanId: hostingplan.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
-    // identity:managedIdentityModule.outputs.managedIdentityOutput.id
-    solutionName: solutionPrefix
-    // solutionLocation: solutionLocation
-    AzureOpenAIEndpoint:aifoundry.outputs.aiServicesTarget
-    AzureOpenAIModel: gptModelName //'gpt-4o-mini'
-    AzureOpenAIKey:keyVault.getSecret('AZURE-OPENAI-KEY')
-    azureOpenAIApiVersion: gptModelVersion //'2024-02-15-preview'
-    AZURE_OPENAI_RESOURCE:aifoundry.outputs.aiServicesName
-    CHARTS_URL:azureFunctionURL.outputs.functionURLsOutput.charts_function_url
-    FILTERS_URL:azureFunctionURL.outputs.functionURLsOutput.filters_function_url
-    USE_GRAPHRAG:'False'
-    USE_CHAT_HISTORY_ENABLED:'True'
-    GRAPHRAG_URL:azureFunctionURL.outputs.functionURLsOutput.graphrag_function_url
-    RAG_URL:azureFunctionURL.outputs.functionURLsOutput.rag_function_url
-    AZURE_COSMOSDB_ACCOUNT: cosmosDBModule.outputs.cosmosAccountName
-    // AZURE_COSMOSDB_ACCOUNT_KEY: keyVault.getSecret('AZURE-COSMOSDB-ACCOUNT-KEY')
-    AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: cosmosDBModule.outputs.cosmosContainerName
-    AZURE_COSMOSDB_DATABASE: cosmosDBModule.outputs.cosmosDatabaseName
-    AZURE_COSMOSDB_ENABLE_FEEDBACK:'True'
+    userassignedIdentityId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.id
+    aiProjectName: aifoundry.outputs.aiProjectName
+    keyVaultName: kvault.outputs.keyvaultName
+    aiServicesName: aifoundry.outputs.aiServicesName
+    appSettings: {
+      AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
+      AZURE_OPENAI_ENDPOINT: aifoundry.outputs.aiServicesTarget
+      AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
+      AZURE_OPENAI_RESOURCE: aifoundry.outputs.aiServicesName
+      AZURE_AI_AGENT_ENDPOINT: aifoundry.outputs.projectEndpoint
+      AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
+      USE_CHAT_HISTORY_ENABLED: 'True'
+      AZURE_COSMOSDB_ACCOUNT: cosmosDBModule.outputs.cosmosAccountName
+      AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: cosmosDBModule.outputs.cosmosContainerName
+      AZURE_COSMOSDB_DATABASE: cosmosDBModule.outputs.cosmosDatabaseName
+      AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
+      SQLDB_DATABASE: sqlDBModule.outputs.sqlDbName
+      SQLDB_SERVER: sqlDBModule.outputs.sqlServerName
+      SQLDB_USERNAME: sqlDBModule.outputs.sqlDbUser
+      SQLDB_USER_MID: managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
+
+      AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
+      AZURE_AI_SEARCH_API_KEY: '@Microsoft.KeyVault(SecretUri=${kvault.outputs.keyvaultUri}secrets/AZURE-SEARCH-KEY/)'
+      AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
+      USE_AI_PROJECT_CLIENT: 'False'
+      DISPLAY_CHART_DEFAULT: 'False'
+      APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
+      DUMMY_TEST: 'True'
+    }
   }
   scope: resourceGroup(resourceGroup().name)
-  dependsOn:[sqlDBModule]
 }
 
-output WEB_APP_URL string = appserviceModule.outputs.webAppUrl
+module frontend_docker 'deploy_frontend_docker.bicep' = {
+  name: 'deploy_frontend_docker'
+  params: {
+    name: '${abbrs.compute.webApp}${solutionPrefix}'
+    solutionLocation:solutionLocation
+    imageTag: imageTag
+    appServicePlanId: hostingplan.outputs.name
+    applicationInsightsId: aifoundry.outputs.applicationInsightsId
+    appSettings:{
+      APP_API_BASE_URL:backend_docker.outputs.appUrl
+    }
+  }
+  scope: resourceGroup(resourceGroup().name)
+}
+
+output SOLUTION_NAME string = solutionPrefix
+output RESOURCE_GROUP_NAME string = resourceGroup().name
+output RESOURCE_GROUP_LOCATION string = solutionLocation
+output ENVIRONMENT_NAME string = environmentName
+output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocation
+output AZURE_SECONDARY_LOCATION string = secondaryLocation
+output APPINSIGHTS_INSTRUMENTATIONKEY string = backend_docker.outputs.appInsightInstrumentationKey
+output AZURE_AI_PROJECT_CONN_STRING string = aifoundry.outputs.projectEndpoint
+output AZURE_AI_PROJECT_NAME string = aifoundry.outputs.aiProjectName
+output AZURE_AI_SEARCH_API_KEY string = ''
+output AZURE_AI_SEARCH_ENDPOINT string = aifoundry.outputs.aiSearchTarget
+output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
+output AZURE_COSMOSDB_ACCOUNT string = cosmosDBModule.outputs.cosmosAccountName
+output AZURE_COSMOSDB_CONVERSATIONS_CONTAINER string = 'conversations'
+output AZURE_COSMOSDB_DATABASE string = 'db_conversation_history'
+output AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
+output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
+output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
+output AZURE_OPENAI_ENDPOINT string = aifoundry.outputs.aiServicesTarget
+output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
+output AZURE_OPENAI_EMBEDDING_MODEL string = embeddingModel
+output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
+output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
+output AZURE_OPENAI_RESOURCE string = aifoundry.outputs.aiServicesName
+output REACT_APP_LAYOUT_CONFIG string = backend_docker.outputs.reactAppLayoutConfig
+output SQLDB_DATABASE string = sqlDBModule.outputs.sqlDbName
+output SQLDB_SERVER string = sqlDBModule.outputs.sqlServerName
+output SQLDB_USER_MID string = managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
+output SQLDB_USERNAME string = sqlDBModule.outputs.sqlDbUser
+output USE_AI_PROJECT_CLIENT string = 'False'
+output USE_CHAT_HISTORY_ENABLED string = 'True'
+output DISPLAY_CHART_DEFAULT string = 'False'
+output AZURE_AI_AGENT_ENDPOINT string = aifoundry.outputs.projectEndpoint
+output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
+
+output API_APP_URL string = backend_docker.outputs.appUrl
+output WEB_APP_URL string = frontend_docker.outputs.appUrl
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicationInsightsConnectionString

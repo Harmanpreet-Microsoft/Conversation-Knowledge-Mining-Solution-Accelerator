@@ -10,7 +10,7 @@ param solutionName string
 param solutionLocation string
 
 @description('Name')
-param miName string = '${ solutionName }-managed-identity'
+param miName string 
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: miName
@@ -36,52 +36,25 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// @description('Array of actions for the roleDefinition')
-// param actions array = [
-//   'Microsoft.Synapse/workspaces/write'
-//   'Microsoft.Synapse/workspaces/read'
-// ]
-
-// @description('Array of notActions for the roleDefinition')
-// param notActions array = []
-
-// @description('Friendly name of the role definition')
-// param roleName string = 'Synapse Administrator-${solutionName}'
-
-// @description('Detailed description of the role definition')
-// param roleDescription string = 'Synapse Administrator-${solutionName}'
-
-// var roleDefName = guid(resourceGroup().id, string(actions), string(notActions))
-
-// resource synadminRoleDef 'Microsoft.Authorization/roleDefinitions@2018-07-01' = {
-//   name: roleDefName
-//   properties: {
-//     roleName: roleName
-//     description: roleDescription
-//     type: 'customRole'
-//     permissions: [
-//       {
-//         actions: actions
-//         notActions: notActions
-//       }
-//     ]
-//     assignableScopes: [
-//       resourceGroup().id
-//     ]
-//   }
-// }
-
-// resource synAdminroleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-//   name: guid(resourceGroup().id, managedIdentity.id, synadminRoleDef.id)
-//   properties: {
-//     principalId: managedIdentity.properties.principalId
-//     roleDefinitionId:  synadminRoleDef.id
-//     principalType: 'ServicePrincipal' 
-//   }
-// }
+resource managedIdentityBackendApp 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${solutionName}-backend-app-mi'
+  location: solutionLocation
+  tags: {
+    app: solutionName
+    location: solutionLocation
+  }
+}
 
 output managedIdentityOutput object = {
   id: managedIdentity.id
   objectId: managedIdentity.properties.principalId
+  clientId: managedIdentity.properties.clientId
   name: miName
+}
+
+output managedIdentityBackendAppOutput object = {
+  id: managedIdentityBackendApp.id
+  objectId: managedIdentityBackendApp.properties.principalId
+  clientId: managedIdentityBackendApp.properties.clientId
+  name: managedIdentityBackendApp.name
 }
