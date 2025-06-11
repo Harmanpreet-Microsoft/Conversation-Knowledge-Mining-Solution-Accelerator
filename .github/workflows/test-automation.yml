@@ -28,7 +28,7 @@ on:
 
 env:
   # Use input URL if provided (from deploy pipeline), otherwise fall back to vars
-  url: ${{ inputs.KMGENERIC_URL }}
+  url: ${{ inputs.KMGENERIC_URL  }}
   api_url: ${{ inputs.KMGENERIC_URL_API}}
   accelerator_name: "KMGeneric"
 
