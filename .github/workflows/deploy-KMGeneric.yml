@@ -144,14 +144,16 @@ jobs:
           echo "Fetching Web Apps..."
           
           WEBAPP_NAMES=$(az webapp list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --query "[].name" -o tsv)
-          
+          echo "Detected Web Apps: $WEBAPP_NAMES"
           for NAME in $WEBAPP_NAMES; do
             if [[ $NAME == app-* ]]; then
               WEBAPP_URL="https://${NAME}.azurewebsites.net"
               echo "WEBAPP_URL=$WEBAPP_URL" >> $GITHUB_OUTPUT
+              echo "WEBAPP_URL=$WEBAPP_URL" 
             elif [[ $NAME == api-* ]]; then
               API_APP_URL="https://${NAME}.azurewebsites.net"
               echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
+              echo "API_APP_URL=$API_APP_URL"
             fi
           done
 
