@@ -47,7 +47,7 @@ jobs:
           export AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
           export AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}
           export AZURE_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          export GPT_MIN_CAPACITY="100"
+          export GPT_MIN_CAPACITY="150"
           export TEXT_EMBEDDING_MIN_CAPACITY="80"
           export AZURE_REGIONS="${{ vars.AZURE_REGIONS_KM }}"
 
@@ -135,7 +135,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }}
+            --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }} gptDeploymentCapacity=150
      
 
 
