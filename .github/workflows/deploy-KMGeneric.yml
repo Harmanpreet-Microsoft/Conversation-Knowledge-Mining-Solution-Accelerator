@@ -15,7 +15,7 @@ on:
 
 env:
   GPT_MIN_CAPACITY: 250
-  TEXT_EMBEDDING_MIN_CAPACITY: 40
+  TEXT_EMBEDDING_MIN_CAPACITY: 90
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
