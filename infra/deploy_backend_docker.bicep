@@ -1,4 +1,5 @@
 param imageTag string
+param acrName string
 param applicationInsightsId string
 
 @description('Solution Location')
@@ -11,8 +12,9 @@ param userassignedIdentityId string
 param aiProjectName string
 param keyVaultName string
 param aiServicesName string
+param useLocalBuild string
 
-var imageName = 'DOCKER|kmcontainerreg.azurecr.io/km-api:${imageTag}'
+var imageName = 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
 //var name = '${solutionName}-api'
 param name string 
 var reactAppLayoutConfig ='''{
@@ -87,6 +89,7 @@ module appService 'deploy_app_service.bicep' = {
     appServicePlanId: appServicePlanId
     appImageName: imageName
     userassignedIdentityId:userassignedIdentityId
+    useLocalBuild: useLocalBuild
     appSettings: union(
       appSettings,
       {
@@ -173,6 +176,23 @@ resource aiUserAccessFoundry 'Microsoft.Authorization/roleAssignments@2022-04-01
   scope: aiServices
   properties: {
     roleDefinitionId: aiUser.id
+    principalId: appService.outputs.identityPrincipalId
+  }
+}
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2021-09-01' existing = if (useLocalBuild == 'true') {
+  name: acrName
+}
+
+resource AcrPull 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = if (useLocalBuild == 'true') {
+  name: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+}
+
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useLocalBuild == 'true') {
+  name: guid(appService.name, AcrPull.id)
+  scope: containerRegistry
+  properties: {
+    roleDefinitionId: AcrPull.id
     principalId: appService.outputs.identityPrincipalId
   }
 }

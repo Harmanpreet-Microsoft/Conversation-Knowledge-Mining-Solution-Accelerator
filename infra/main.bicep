@@ -62,9 +62,18 @@ param imageTag string = 'latest'
 param AZURE_LOCATION string=''
 var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
 
+@description('Set this flag to true only if you are deploying from Local')
+param useLocalBuild string = 'false'
+
+// Convert input to lowercase
+var useLocalBuildLower = toLower(useLocalBuild)
+
 var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation))
 var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
-// var resourceGroupName = resourceGroup().name
+
+var containerRegistryName = '${abbrs.containers.containerRegistry}${solutionPrefix}'
+var containerRegistryNameCleaned = replace(containerRegistryName, '-', '')
+var acrName = useLocalBuildLower == 'true' ? containerRegistryNameCleaned : 'kmcontainerreg'
 
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
 
@@ -149,12 +158,6 @@ module sqlDBModule 'deploy_sql_db.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
-//========== Updates to Key Vault ========== //
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
-  name: aifoundry.outputs.keyvaultName
-  scope: resourceGroup(resourceGroup().name)
-}
-
 //========== Deployment script to upload sample data ========== //
 module uploadFiles 'deploy_post_deployment_scripts.bicep' = {
   name : 'deploy_post_deployment_scripts'
@@ -197,12 +200,14 @@ module backend_docker 'deploy_backend_docker.bicep' = {
     name: 'api-${solutionPrefix}'
     solutionLocation: solutionLocation
     imageTag: imageTag
+    acrName: acrName
     appServicePlanId: hostingplan.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.id
     aiProjectName: aifoundry.outputs.aiProjectName
     keyVaultName: kvault.outputs.keyvaultName
     aiServicesName: aifoundry.outputs.aiServicesName
+    useLocalBuild: useLocalBuildLower
     appSettings: {
       AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
       AZURE_OPENAI_ENDPOINT: aifoundry.outputs.aiServicesTarget
@@ -238,8 +243,10 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
     name: '${abbrs.compute.webApp}${solutionPrefix}'
     solutionLocation:solutionLocation
     imageTag: imageTag
+    acrName: acrName
     appServicePlanId: hostingplan.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
+    useLocalBuild: useLocalBuildLower
     appSettings:{
       APP_API_BASE_URL:backend_docker.outputs.appUrl
     }
@@ -281,6 +288,8 @@ output USE_CHAT_HISTORY_ENABLED string = 'True'
 output DISPLAY_CHART_DEFAULT string = 'False'
 output AZURE_AI_AGENT_ENDPOINT string = aifoundry.outputs.projectEndpoint
 output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
+output ACR_NAME string = acrName
+output AZURE_ENV_IMAGETAG string = imageTag
 
 output API_APP_URL string = backend_docker.outputs.appUrl
 output WEB_APP_URL string = frontend_docker.outputs.appUrl

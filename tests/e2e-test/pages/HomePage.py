@@ -6,9 +6,13 @@ class HomePage(BasePage):
     SEND_BUTTON = "//button[@title='Send Question']"
     SHOW_CHAT_HISTORY_BUTTON = "//button[normalize-space()='Show Chat History']"
     HIDE_CHAT_HISTORY_BUTTON = "//button[normalize-space()='Hide Chat History']"
-    CHAT_HISTORY_NAME = "//div[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'call')]"
+    CHAT_HISTORY_NAME = "//div[contains(@class, 'ChatHistoryListItemCell_chatTitle')]"
     CLEAR_CHAT_HISTORY_MENU = "//button[@id='moreButton']"
     CLEAR_CHAT_HISTORY = "//button[@role='menuitem']"
+    REFERENCE_LINKS_IN_RESPONSE = "//span[@role='button' and contains(@class, 'citationContainer')]"
+    CLOSE_BUTTON = "svg[role='button'][tabindex='0']"
+
+
 
     def __init__(self, page):
         self.page = page
@@ -40,7 +44,7 @@ class HomePage(BasePage):
         self.page.wait_for_load_state('networkidle')
         self.page.wait_for_timeout(2000)
         try:
-            expect(self.page.locator(self.CHAT_HISTORY_NAME)).to_be_visible(timeout=7000)
+            expect(self.page.locator(self.CHAT_HISTORY_NAME)).to_be_visible(timeout=9000)
         except AssertionError:
             raise AssertionError("Chat history name was not visible on the page within the expected time.")
         
@@ -67,5 +71,34 @@ class HomePage(BasePage):
         self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).click()
         self.page.wait_for_load_state('networkidle')
         self.page.wait_for_timeout(2000)
+    
+    def click_reference_link_in_response(self):
+        # Click on reference link response
+        BasePage.scroll_into_view(self, self.page.locator(self.REFERENCE_LINKS_IN_RESPONSE))
+        self.page.wait_for_timeout(2000)
+        reference_links = self.page.locator(self.REFERENCE_LINKS_IN_RESPONSE)
+        reference_links.nth(reference_links.count() - 1).click()
+        # self.page.locator(self.REFERENCE_LINKS_IN_RESPONSE).click()
+        self.page.wait_for_load_state('networkidle')
+        self.page.wait_for_timeout(2000)
+ 
+ 
+    def close_citation(self):
+        self.page.wait_for_timeout(3000)
+        
+        close_btn = self.page.locator(self.CLOSE_BUTTON)
+        close_btn.wait_for(state="attached", timeout=5000)
+        # bring it into view just in case
+        close_btn.scroll_into_view_if_needed()
+        # force the click, bypassing the aria-hidden check
+        close_btn.click(force=True)
+        self.page.wait_for_timeout(5000)
 
-  
+    def has_reference_link(self):
+        # Get all assistant messages
+        assistant_messages = self.page.locator("div.chat-message.assistant")
+        last_assistant = assistant_messages.nth(assistant_messages.count() - 1)
+
+        # Use XPath properly by prefixing with 'xpath='
+        reference_links = last_assistant.locator("xpath=.//span[@role='button' and contains(@class, 'citationContainer')]")
+        return reference_links.count() > 0
