@@ -88,6 +88,29 @@ jobs:
             sleep 30
             attempt=$((attempt + 1))
           done
+      - name: Wait for Backend to be Ready
+        run: |
+          echo "Waiting for backend to be ready at ${{ env.api_url }} "
+          max_attempts=10
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt: Checking if backend is ready..."
+            if curl -f -s "${{ env.api_url }}" > /dev/null; then
+              echo "Backend is ready!"
+              break
+
+            fi
+            
+            if [ $attempt -eq $max_attempts ]; then
+              echo "Application is not ready after $max_attempts attempts"
+              exit 1
+            fi
+            
+            echo "Application not ready, waiting 30 seconds..."
+            sleep 30
+            attempt=$((attempt + 1))
+          done
 
       - name: Run tests(1)
         id: test1
