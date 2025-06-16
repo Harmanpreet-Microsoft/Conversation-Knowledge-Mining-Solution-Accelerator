@@ -34,13 +34,9 @@ jobs:
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           az --version
-
       - name: Login to Azure
         run: |
           az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-
-
-
       - name: Run Quota Check
         id: quota-check
         run: |
@@ -48,10 +44,9 @@ jobs:
           export AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
           export AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}
           export AZURE_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          export GPT_MIN_CAPACITY=${{ env.GPT_MIN_CAPACITY }}
-          export TEXT_EMBEDDING_MIN_CAPACITY=${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
+          export GPT_MIN_CAPACITY="150"
+          export TEXT_EMBEDDING_MIN_CAPACITY="80"
           export AZURE_REGIONS="${{ vars.AZURE_REGIONS_KM }}"
-
           chmod +x infra/scripts/checkquota_km.sh
           if ! infra/scripts/checkquota_km.sh; then
             # If quota check fails due to insufficient quota, set the flag
@@ -60,45 +55,36 @@ jobs:
             fi
             exit 1  # Fail the pipeline if any other failure occurs
           fi
-  
-  
       - name: Send Notification on Quota Failure
         if: env.QUOTA_FAILED == 'true'
         run: |
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           EMAIL_BODY=$(cat <<EOF
           {
-            "body": "<p>Dear Team,</p><p>The quota check has failed, and the pipeline cannot proceed.</p><p><strong>Build URL:</strong> ${RUN_URL}</p><p>Please take necessary action.</p><p>Best regards,<br>Your Automation Team</p>"
+            "body": "<p>Dear Team,</p><p>The KMGeneric quota check has failed, and the pipeline cannot proceed.</p><p><strong>Build URL:</strong> <a href=\"${RUN_URL}\">${RUN_URL}</a></p><p>Please take necessary action.</p><p>Best regards,<br>Your Automation Team</p>",
+            "subject": "KMGeneric Deployment - Quota Check Failed"
           }
           EOF
           )
-
           curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
             -H "Content-Type: application/json" \
             -d "$EMAIL_BODY" || echo "Failed to send notification"
-
       - name: Fail Pipeline if Quota Check Fails
         if: env.QUOTA_FAILED == 'true'
         run: exit 1
-      
-      - name: Set Deployment Region
-        run: |
-          echo "Deployment Region: $VALID_REGION"
-          echo "AZURE_LOCATION=$VALID_REGION" >> $GITHUB_ENV
-
-      - name: Login to Azure
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Install Bicep CLI
         run: az bicep install
-
       
+      - name: Set Deployment Region
+        run: |
+          echo "Selected Region: $VALID_REGION"
+          echo "AZURE_LOCATION=$VALID_REGION" >> $GITHUB_ENV
       - name: Generate Resource Group Name
         id: generate_rg_name
         run: |
           echo "Generating a unique resource group name..."
-          ACCL_NAME="ca"  # Account name as specified
+          ACCL_NAME="kmgeneric"
           SHORT_UUID=$(uuidgen | cut -d'-' -f1)
           UNIQUE_RG_NAME="arg-${ACCL_NAME}-${SHORT_UUID}"
           echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
@@ -107,7 +93,6 @@ jobs:
       - name: Check and Create Resource Group
         id: check_create_rg
         run: |
-          echo "RESOURCE_GROUP: ${{ env.RESOURCE_GROUP_NAME }}"
           set -e  
           echo "Checking if resource group exists..."
           rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
@@ -117,19 +102,17 @@ jobs:
           else
             echo "Resource group already exists."
           fi
-      
+          echo "RESOURCE_GROUP_NAME=${{ env.RESOURCE_GROUP_NAME }}" >> $GITHUB_OUTPUT
       - name: Generate Unique Solution Prefix
         id: generate_solution_prefix
         run: |
           set -e
-          COMMON_PART="pslc"
+          COMMON_PART="kmg"
           TIMESTAMP=$(date +%s)  
-          UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 3) 
+          UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 6) 
           UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
           echo "SOLUTION_PREFIX=${UNIQUE_SOLUTION_PREFIX}" >> $GITHUB_ENV
-          echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}"
-
-
+          echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
       - name: Determine Tag Name Based on Branch
         id: determine_tag
         run: echo "tagname=${{ github.ref_name == 'main' && 'latest' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
@@ -163,9 +146,6 @@ jobs:
               echo "API_APP_URL=$API_APP_URL"
             fi
           done
-
-
-
       - name: Extract AI Services and Key Vault Names
         if: always()
         run: |
@@ -190,13 +170,11 @@ jobs:
           else
             echo "SUCCESS=false" >> $GITHUB_OUTPUT
           fi
-
       - name: Logout from Azure
         if: always()
         run: |
           az logout
           echo "Logged out from Azure."
-
   # NEW: E2E Test Job that calls the reusable workflow
   e2e-test:
     needs: deploy
@@ -218,12 +196,10 @@ jobs:
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           az --version
-
       - name: Login to Azure
         run: |
           az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-
       - name: Extract AI Services and Key Vault Names
         if: always()
         run: |
@@ -233,14 +209,11 @@ jobs:
           KEYVAULT_NAME=$(az resource list --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
           echo "Detected Key Vault: $KEYVAULT_NAME"
           echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
-
           # Extract AI Services names
           echo "Fetching AI Services..."
           AI_SERVICES=$(az resource list --resource-group '${{ env.RESOURCE_GROUP_NAME }}' --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv)
-
           # Flatten newline-separated values to space-separated
           AI_SERVICES=$(echo "$AI_SERVICES" | paste -sd ' ' -)
-
           echo "Detected AI Services: $AI_SERVICES"
           echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV
       
@@ -260,7 +233,6 @@ jobs:
           else
             echo "Resource group does not exist."
           fi
-
       - name: Wait for Resource Deletion to Complete
         if: always()
         run: |
@@ -346,13 +318,10 @@ jobs:
           
           # Ensure AI_SERVICES is properly split into individual services
           IFS=' ' read -r -a SERVICES <<< "${{ env.AI_SERVICES }}"
-
           for AI_SERVICE in "${SERVICES[@]}"; do
             echo "Checking location for AI Service: $AI_SERVICE"
-
             # Fetch AI Service location
             SERVICE_LOCATION=$(az cognitiveservices account list-deleted --query "[?name=='$AI_SERVICE'].location" -o tsv 2>/dev/null || echo "")
-
             if [ -n "$SERVICE_LOCATION" ]; then
               echo "Purging AI Service $AI_SERVICE in $SERVICE_LOCATION"
               az cognitiveservices account purge --location "$SERVICE_LOCATION" --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --name "$AI_SERVICE"
@@ -360,17 +329,13 @@ jobs:
               echo "Could not determine location for AI Service: $AI_SERVICE. Skipping purge."
             fi
           done
-
           # Purge Key Vaults
           echo "Starting purge for Key Vaults..."
           IFS=' ' read -r -a VAULTS <<< "${{ env.KEYVAULT_NAME }}"
-
           for VAULT in "${VAULTS[@]}"; do
             echo "Checking location for Key Vault: $VAULT"
-
             # Fetch Key Vault location
             VAULT_LOCATION=$(az keyvault list-deleted --query "[?name=='$VAULT'].properties.location" -o tsv 2>/dev/null || echo "")
-
             if [ -n "$VAULT_LOCATION" ]; then
               echo "Purging Key Vault $VAULT in $VAULT_LOCATION"
               az keyvault purge --name "$VAULT" --location "$VAULT_LOCATION"
@@ -378,12 +343,10 @@ jobs:
               echo "Could not determine location for Key Vault: $VAULT. Skipping purge."
             fi
           done
-
       - name: Send Notification on Failure
         if: failure() || needs.deploy.result == 'failure' || needs.e2e-test.result == 'failure'
         run: |
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
           EMAIL_BODY=$(cat <<EOF
           {
             "body": "<p>Dear Team,</p><p>We would like to inform you that the KMGeneric Deployment Automation process has encountered an issue and has failed to complete successfully.</p><p><strong>Build URL:</strong> <a href=\"${RUN_URL}\">${RUN_URL}</a><br></p><p>Please investigate the matter at your earliest convenience.</p><p>Best regards,<br>Your Automation Team</p>",
@@ -391,11 +354,9 @@ jobs:
           }
           EOF
           )
-
           curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
             -H "Content-Type: application/json" \
             -d "$EMAIL_BODY" || echo "Failed to send notification"
-
       - name: Logout from Azure
         if: always()
         run: |
