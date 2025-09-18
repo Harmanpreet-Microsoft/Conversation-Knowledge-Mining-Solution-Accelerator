@@ -29,7 +29,7 @@ updates:
         patterns:
           - "*"
 
-  # Frontend npm dependencies - grouped
+# Frontend npm dependencies - using replaces-base to override .npmrc
   - package-ecosystem: "npm"
     directory: "/src/App"
     schedule:
@@ -39,14 +39,14 @@ updates:
       prefix: "build"
     open-pull-requests-limit: 10
     registries:
-      - npm_public_registry
+      - npm-public
     groups:
       frontend-deps:
         patterns:
           - "*"
 
 registries:
-  npm_public_registry:
+  npm-public:
     type: "npm-registry"
-    url: "https://registry.npmjs.org/"
-    token: ${{ secrets.TOKEN }}
+    url: "https://registry.npmjs.org"
+    replaces-base: true  # This overrides .npmrc configuration
