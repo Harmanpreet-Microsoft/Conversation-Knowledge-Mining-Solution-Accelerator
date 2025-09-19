@@ -30,7 +30,6 @@ updates:
           - "*"
 
   # Frontend npm dependencies - grouped
-
   - package-ecosystem: "npm"
     directory: "/src/App"
     schedule:
@@ -39,16 +38,7 @@ updates:
     commit-message:
       prefix: "build"
     open-pull-requests-limit: 10
-    registries:
-      - npm_public_registry
     groups:
       frontend-deps:
         patterns:
           - "*"
-
-registries:
-  npm_public_registry:
-    type: "npm-registry"
-    url: "https://registry.npmjs.org/"
-    token: ${{ secrets.TOKEN }}
-    replaces-base: true
