@@ -1,6 +1,5 @@
 version: 2
 
-
 updates:
   # GitHub Actions - grouped
   - package-ecosystem: "github-actions"
@@ -30,7 +29,7 @@ updates:
         patterns:
           - "*"
 
-# Frontend npm dependencies - using replaces-base to override .npmrc
+  # Frontend npm dependencies - grouped
   - package-ecosystem: "npm"
     directory: "/src/App"
     schedule:
@@ -40,14 +39,16 @@ updates:
       prefix: "build"
     open-pull-requests-limit: 10
     registries:
-      - npm-public
+      - npm_public_registry
+    ignore-paths:
+      - "/src/App/.npmrc"
     groups:
       frontend-deps:
         patterns:
           - "*"
 
 registries:
-  npm-public:
+  npm_public_registry:
     type: "npm-registry"
-    url: "https://registry.npmjs.org"
-    replaces-base: true  # This overrides .npmrc configuration
+    url: "https://registry.npmjs.org/"
+    token: ${{ secrets.TOKEN }}
