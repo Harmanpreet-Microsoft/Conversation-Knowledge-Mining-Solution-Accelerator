@@ -1,0 +1,10 @@
+registry=https://registry.npmjs.org/
+
+
+@myorg:registry=https://pkgs.dev.azure.com/CSACTOSOL/KnowledgeMining/_packaging/KnowledgeMining/_PublicPackages/npm/registry/
+@myorg:always-auth=true
+
+# @fluentui:registry=https://registry.npmjs.org/
+# @azure:registry=https://registry.npmjs.org/
+# @testing-library:registry=https://registry.npmjs.org/
+# @types:registry=https://registry.npmjs.org/
