@@ -1,6 +1,5 @@
 version: 2
 
-
 updates:
   # GitHub Actions - grouped
   - package-ecosystem: "github-actions"
@@ -41,13 +40,13 @@ updates:
     open-pull-requests-limit: 10
     registries:
       - npm-public
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    groups:
-      frontend-deps:
-        patterns:
-          - "*"
+    # ignore:
+    #   - dependency-name: "*"
+    #     update-types: ["version-update:semver-major"]
+    # groups:
+    #   frontend-deps:
+    #     patterns:
+    #       - "*"
 
 registries:
   npm-public:
