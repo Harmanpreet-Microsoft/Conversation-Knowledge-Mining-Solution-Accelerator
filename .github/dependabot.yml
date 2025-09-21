@@ -39,8 +39,7 @@ updates:
     commit-message:
       prefix: "build"
     open-pull-requests-limit: 10
-    registries:
-      - npm-public
+    registries: ["npm-public"]
     # ignore:
     #   - dependency-name: "*"
     #     update-types: ["version-update:semver-major"]
