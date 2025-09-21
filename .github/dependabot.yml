@@ -49,4 +49,3 @@ registries:
   public-npm:
     type: "npm-registry"
     url: "https://registry.npmjs.org"
-    replaces-base: true
