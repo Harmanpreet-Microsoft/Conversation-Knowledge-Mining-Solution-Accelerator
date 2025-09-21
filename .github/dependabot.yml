@@ -29,7 +29,7 @@ updates:
         patterns:
           - "*"
 
-  # Frontend npm dependencies - using explicit registry override
+  # Frontend npm dependencies - explicit public registry override
   - package-ecosystem: "npm"
     directory: "/src/App"
     schedule:
@@ -39,13 +39,14 @@ updates:
       prefix: "build"
     open-pull-requests-limit: 10
     registries:
-      - npm-public
+      - public-npm
     groups:
       frontend-deps:
         patterns:
           - "*"
 
 registries:
-  npm-public:
+  public-npm:
     type: "npm-registry"
-    url: "https://registry.npmjs.org/"
+    url: "https://registry.npmjs.org"
+    replaces-base: true
