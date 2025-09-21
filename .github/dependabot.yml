@@ -39,6 +39,7 @@ updates:
     commit-message:
       prefix: "build"
     open-pull-requests-limit: 10
+    
     registries: ["npm-public"]
     # ignore:
     #   - dependency-name: "*"
@@ -48,9 +49,9 @@ updates:
     #     patterns:
     #       - "*"
 
-registries:
-  npm-public:
-    type: "npm-registry"
-    url: "https://registry.npmjs.org"
-    token: ${{secrets.NPM_TOKEN}}
-    replaces-base: true
+# registries:
+#   npm-public:
+#     type: "npm-registry"
+#     url: "https://registry.npmjs.org"
+#     token: ${{secrets.NPM_TOKEN}}
+#     replaces-base: true
