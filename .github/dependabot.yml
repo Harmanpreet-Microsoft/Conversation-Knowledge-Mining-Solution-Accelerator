@@ -29,7 +29,7 @@ updates:
         patterns:
           - "*"
 
-  # Frontend npm dependencies - explicit public registry override
+  # Frontend npm dependencies - explicit public registry with token
   - package-ecosystem: "npm"
     directory: "/src/App"
     schedule:
@@ -39,13 +39,17 @@ updates:
       prefix: "build"
     open-pull-requests-limit: 10
     registries:
-      - public-npm
+      - npm-public
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-deps:
         patterns:
           - "*"
 
 registries:
-  public-npm:
+  npm-public:
     type: "npm-registry"
     url: "https://registry.npmjs.org"
+    token: secrets.NPM_TOKEN
