@@ -38,6 +38,8 @@ updates:
     commit-message:
       prefix: "build"
     open-pull-requests-limit: 10
+    allow:
+      - dependency-type: direct 
     
     # registries: ["npm-public"]
     # ignore:
