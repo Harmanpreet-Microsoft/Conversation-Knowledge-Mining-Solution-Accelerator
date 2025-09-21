@@ -53,4 +53,4 @@ registries:
   npm-public:
     type: "npm-registry"
     url: "https://registry.npmjs.org"
-    replaces-base: true
+    token: ${{secrets.NPM_TOKEN}}
