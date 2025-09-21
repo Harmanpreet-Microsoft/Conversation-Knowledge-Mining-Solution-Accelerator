@@ -1,5 +1,10 @@
 version: 2
 
+registries:
+  npmjs:
+    type: npm-registry
+    url: https://registry.npmjs.org
+    
 updates:
   # GitHub Actions - grouped
   - package-ecosystem: "github-actions"
@@ -29,7 +34,7 @@ updates:
         patterns:
           - "*"
 
-  # Frontend npm dependencies - grouped
+  # Frontend npm dependencies - grouped  
   - package-ecosystem: "npm"
     directory: "/src/App"
     schedule:
@@ -39,14 +44,8 @@ updates:
       prefix: "build"
     open-pull-requests-limit: 10
     registries:
-      - npm_public_registry
+      - npmjs
     groups:
       frontend-deps:
         patterns:
           - "*"
-
-registries:
-  npm_public_registry:
-    type: "npm-registry"
-    url: "https://registry.npmjs.org/"
-    token: ${{ secrets.TOKEN }}
