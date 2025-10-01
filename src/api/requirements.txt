@@ -1,7 +1,7 @@
 # Base packages
 cachetools==6.2.0
 python-dotenv==1.1.1
-fastapi==0.117.1
+fastapi==0.118.0
 uvicorn[standard]
 pydantic[email]
 
@@ -20,9 +20,9 @@ azure-cosmos==4.9.0
 
 # Additional utilities
 semantic-kernel[azure]==1.32.2
-openai==1.108.1
+openai==2.0.0
 pyodbc==5.2.0
-pandas==2.3.2
+pandas==2.3.3
 
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-exporter-otlp-proto-http
